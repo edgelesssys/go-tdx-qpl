@@ -3,8 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/edgelesssys/go-tdx-qpl/verification"
 	"os"
+
+	"github.com/edgelesssys/go-tdx-qpl/verification/types"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func parseBlob() error {
 		return err
 	}
 
-	parsedQuote, err := verification.ParseQuote(rawQuote)
+	parsedQuote, err := types.ParseQuote(rawQuote)
 	if err != nil {
 		return err
 	}
