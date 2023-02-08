@@ -98,6 +98,6 @@ func ParseQuote(rawQuote []byte) SGXQuote4 {
 		Header:          quoteHeader,
 		Body:            body,
 		SignatureLength: signatureLength,
-		Signature:       rawQuote[636:signatureLength],
+		Signature:       rawQuote[636 : 636+signatureLength],
 	}
 }
