@@ -1,8 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/edgelesssys/go-tdx-qpl/verification"
-	"log"
 	"os"
 )
 
@@ -19,7 +20,14 @@ func parseBlob() error {
 	}
 
 	parsedQuote := verification.ParseQuote(rawQuote)
-	log.Println(parsedQuote)
+	signature := verification.ParseSignature(parsedQuote.Signature)
+
+	prettyPrint, err := json.MarshalIndent(signature, "", " ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(prettyPrint))
 
 	return nil
 }

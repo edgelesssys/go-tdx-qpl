@@ -101,3 +101,87 @@ func ParseQuote(rawQuote []byte) SGXQuote4 {
 		Signature:       rawQuote[636 : 636+signatureLength],
 	}
 }
+
+/*
+	Based on:
+	https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteVerification/QVL/Src/AttestationLibrary/src/QuoteVerification/QuoteStructures.h
+*/
+
+type ECDSA256QuoteV4AuthData struct {
+	Signature         [64]byte
+	PublicKey         [64]byte
+	CertificationData CertificationData
+}
+
+type CertificationData struct {
+	Type           uint16
+	ParsedDataSize uint32
+	// Can be:
+	// -> QEReportCertificationData (if type == 6: PCK_ID_QE_REPORT_CERTIFICATION_DATA)
+	//    -> Certificates (if type == 5: PCK_ID_PCK_CERT_CHAIN)
+	Data interface{}
+}
+
+type EnclaveReport struct {
+	CPUSVN     [16]byte
+	MiscSelect uint32
+	Reserved1  [28]byte
+	Attributes [16]byte // TODO: Is this an uint128?
+	MRENCLAVE  [32]byte
+	Reserved2  [32]byte
+	MRSIGNER   [32]byte
+	Reserved3  [96]byte
+	isvProdID  uint16
+	isvSVN     uint16
+	Reserved4  [60]byte
+	ReportData [64]byte
+}
+
+type QEAuthData struct {
+	ParsedDataSize uint16
+	Data           []byte
+}
+
+type QEReportCertificationData struct {
+	EnclaveReport     EnclaveReport
+	Signature         [64]byte // ECDSA256 signature
+	QEAuthData        QEAuthData
+	CertificationData CertificationData
+}
+
+func ParseSignature(signature []byte) ECDSA256QuoteV4AuthData {
+	return ECDSA256QuoteV4AuthData{
+		Signature: [64]byte(signature[0:64]),   // ECDSA256 signature
+		PublicKey: [64]byte(signature[64:128]), // ECDSA256 public key
+		CertificationData: CertificationData{
+			Type:           binary.LittleEndian.Uint16(signature[128:130]),
+			ParsedDataSize: binary.LittleEndian.Uint32(signature[130:134]),
+			Data: QEReportCertificationData{
+				EnclaveReport: EnclaveReport{
+					CPUSVN:     [16]byte(signature[134:150]),
+					MiscSelect: binary.LittleEndian.Uint32(signature[150:154]),
+					Reserved1:  [28]byte(signature[154:182]),
+					Attributes: [16]byte(signature[182:198]),
+					MRENCLAVE:  [32]byte(signature[198:230]),
+					Reserved2:  [32]byte(signature[230:262]),
+					MRSIGNER:   [32]byte(signature[262:294]),
+					Reserved3:  [96]byte(signature[294:390]),
+					isvProdID:  binary.LittleEndian.Uint16(signature[390:392]),
+					isvSVN:     binary.LittleEndian.Uint16(signature[392:394]),
+					Reserved4:  [60]byte(signature[394:454]),
+					ReportData: [64]byte(signature[454:518]),
+				},
+				Signature: [64]byte(signature[518:582]),
+				QEAuthData: QEAuthData{
+					ParsedDataSize: binary.LittleEndian.Uint16(signature[582:584]), // TODO: Make this dynamic, but this is likely 32 bytes.
+					Data:           signature[584:616],
+				},
+				CertificationData: CertificationData{
+					Type:           binary.LittleEndian.Uint16(signature[616:618]),
+					ParsedDataSize: binary.LittleEndian.Uint32(signature[618:622]),
+					Data:           signature[622 : 622+binary.LittleEndian.Uint32(signature[618:622])],
+				},
+			},
+		},
+	}
+}
