@@ -113,13 +113,14 @@ type ECDSA256QuoteV4AuthData struct {
 	CertificationData CertificationData
 }
 
+// CertificationData is a generic Data wrapper from Intel's library.
+// In our case (API v4, TDX), this usually is:
+// QEReportCertificationData (type == 6: PCK_ID_QE_REPORT_CERTIFICATION_DATA)
+// PEM certificate chain (type == 5: PCK_ID_PCK_CERT_CHAIN)
 type CertificationData struct {
 	Type           uint16
 	ParsedDataSize uint32
-	// Can be:
-	// -> QEReportCertificationData (if type == 6: PCK_ID_QE_REPORT_CERTIFICATION_DATA)
-	//    -> Certificates (if type == 5: PCK_ID_PCK_CERT_CHAIN)
-	Data interface{}
+	Data           any
 }
 
 type EnclaveReport struct {
@@ -150,38 +151,57 @@ type QEReportCertificationData struct {
 }
 
 func ParseSignature(signature []byte) ECDSA256QuoteV4AuthData {
-	return ECDSA256QuoteV4AuthData{
+	quoteSignature := ECDSA256QuoteV4AuthData{
 		Signature: [64]byte(signature[0:64]),   // ECDSA256 signature
 		PublicKey: [64]byte(signature[64:128]), // ECDSA256 public key
 		CertificationData: CertificationData{
 			Type:           binary.LittleEndian.Uint16(signature[128:130]),
 			ParsedDataSize: binary.LittleEndian.Uint32(signature[130:134]),
-			Data: QEReportCertificationData{
-				EnclaveReport: EnclaveReport{
-					CPUSVN:     [16]byte(signature[134:150]),
-					MiscSelect: binary.LittleEndian.Uint32(signature[150:154]),
-					Reserved1:  [28]byte(signature[154:182]),
-					Attributes: [16]byte(signature[182:198]),
-					MRENCLAVE:  [32]byte(signature[198:230]),
-					Reserved2:  [32]byte(signature[230:262]),
-					MRSIGNER:   [32]byte(signature[262:294]),
-					Reserved3:  [96]byte(signature[294:390]),
-					isvProdID:  binary.LittleEndian.Uint16(signature[390:392]),
-					isvSVN:     binary.LittleEndian.Uint16(signature[392:394]),
-					Reserved4:  [60]byte(signature[394:454]),
-					ReportData: [64]byte(signature[454:518]),
-				},
-				Signature: [64]byte(signature[518:582]),
-				QEAuthData: QEAuthData{
-					ParsedDataSize: binary.LittleEndian.Uint16(signature[582:584]), // TODO: Make this dynamic, but this is likely 32 bytes.
-					Data:           signature[584:616],
-				},
-				CertificationData: CertificationData{
-					Type:           binary.LittleEndian.Uint16(signature[616:618]),
-					ParsedDataSize: binary.LittleEndian.Uint32(signature[618:622]),
-					Data:           signature[622 : 622+binary.LittleEndian.Uint32(signature[618:622])],
-				},
-			},
 		},
 	}
+
+	quoteSignature.CertificationData.Data = ParseQECertificationData(signature[134 : 134+quoteSignature.CertificationData.ParsedDataSize])
+
+	return quoteSignature
+}
+
+func ParseQECertificationData(qeReportData []byte) QEReportCertificationData {
+	qeReport := QEReportCertificationData{
+		EnclaveReport: EnclaveReport{
+			CPUSVN:     [16]byte(qeReportData[0:16]),
+			MiscSelect: binary.LittleEndian.Uint32(qeReportData[16:20]),
+			Reserved1:  [28]byte(qeReportData[20:48]),
+			Attributes: [16]byte(qeReportData[48:64]),
+			MRENCLAVE:  [32]byte(qeReportData[64:96]),
+			Reserved2:  [32]byte(qeReportData[96:128]),
+			MRSIGNER:   [32]byte(qeReportData[128:160]),
+			Reserved3:  [96]byte(qeReportData[160:256]),
+			isvProdID:  binary.LittleEndian.Uint16(qeReportData[256:258]),
+			isvSVN:     binary.LittleEndian.Uint16(qeReportData[258:260]),
+			Reserved4:  [60]byte(qeReportData[260:320]),
+			ReportData: [64]byte(qeReportData[320:384]),
+		},
+		Signature: [64]byte(qeReportData[384:448]),
+		QEAuthData: QEAuthData{
+			ParsedDataSize: binary.LittleEndian.Uint16(qeReportData[448:450]),
+		},
+	}
+
+	endQEAuthData := 450 + qeReport.QEAuthData.ParsedDataSize
+	qeReport.QEAuthData.Data = qeReportData[450:endQEAuthData]
+	qeReport.CertificationData = ParseQEAuthDataCertificationData(qeReportData[endQEAuthData:])
+
+	return qeReport
+}
+
+func ParseQEAuthDataCertificationData(qeReportAuthDataCertData []byte) CertificationData {
+	qeAuthDataCertData := CertificationData{
+		Type:           binary.LittleEndian.Uint16(qeReportAuthDataCertData[0:2]),
+		ParsedDataSize: binary.LittleEndian.Uint32(qeReportAuthDataCertData[2:6]),
+	}
+
+	data := qeReportAuthDataCertData[6 : 6+qeAuthDataCertData.ParsedDataSize]
+	qeAuthDataCertData.Data = data
+
+	return qeAuthDataCertData
 }
