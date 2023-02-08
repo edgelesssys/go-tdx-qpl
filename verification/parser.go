@@ -39,7 +39,7 @@ type SGXQuote4 struct {
 	Header          SGXQuote4Header
 	Body            SGXReport2
 	SignatureLength uint32
-	Signature       []byte
+	Signature       ECDSA256QuoteV4AuthData
 }
 
 func ParseQuote(rawQuote []byte) SGXQuote4 {
@@ -73,7 +73,7 @@ func ParseQuote(rawQuote []byte) SGXQuote4 {
 		Header:          quoteHeader,
 		Body:            body,
 		SignatureLength: signatureLength,
-		Signature:       rawQuote[636 : 636+signatureLength],
+		Signature:       parseSignature(rawQuote[636 : 636+signatureLength]),
 	}
 }
 
@@ -126,7 +126,7 @@ type QEReportCertificationData struct {
 	CertificationData CertificationData
 }
 
-func ParseSignature(signature []byte) ECDSA256QuoteV4AuthData {
+func parseSignature(signature []byte) ECDSA256QuoteV4AuthData {
 	quoteSignature := ECDSA256QuoteV4AuthData{
 		Signature: [64]byte(signature[0:64]),   // ECDSA256 signature
 		PublicKey: [64]byte(signature[64:128]), // ECDSA256 public key

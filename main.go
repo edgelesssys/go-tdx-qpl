@@ -20,9 +20,8 @@ func parseBlob() error {
 	}
 
 	parsedQuote := verification.ParseQuote(rawQuote)
-	signature := verification.ParseSignature(parsedQuote.Signature)
 
-	prettyPrint, err := json.MarshalIndent(signature, "", " ")
+	prettyPrint, err := json.MarshalIndent(parsedQuote, "", " ")
 	if err != nil {
 		return err
 	}
