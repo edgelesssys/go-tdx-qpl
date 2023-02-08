@@ -136,12 +136,12 @@ func ParseSignature(signature []byte) ECDSA256QuoteV4AuthData {
 		},
 	}
 
-	quoteSignature.CertificationData.Data = ParseQECertificationData(signature[134 : 134+quoteSignature.CertificationData.ParsedDataSize])
+	quoteSignature.CertificationData.Data = parseQECertificationData(signature[134 : 134+quoteSignature.CertificationData.ParsedDataSize])
 
 	return quoteSignature
 }
 
-func ParseQECertificationData(qeReportData []byte) QEReportCertificationData {
+func parseQECertificationData(qeReportData []byte) QEReportCertificationData {
 	qeReport := QEReportCertificationData{
 		EnclaveReport: EnclaveReport{
 			CPUSVN:     [16]byte(qeReportData[0:16]),
@@ -165,12 +165,12 @@ func ParseQECertificationData(qeReportData []byte) QEReportCertificationData {
 
 	endQEAuthData := 450 + qeReport.QEAuthData.ParsedDataSize
 	qeReport.QEAuthData.Data = qeReportData[450:endQEAuthData]
-	qeReport.CertificationData = ParseQEAuthDataCertificationData(qeReportData[endQEAuthData:])
+	qeReport.CertificationData = parseQEAuthDataCertificationData(qeReportData[endQEAuthData:])
 
 	return qeReport
 }
 
-func ParseQEAuthDataCertificationData(qeReportAuthDataCertData []byte) CertificationData {
+func parseQEAuthDataCertificationData(qeReportAuthDataCertData []byte) CertificationData {
 	qeAuthDataCertData := CertificationData{
 		Type:           binary.LittleEndian.Uint16(qeReportAuthDataCertData[0:2]),
 		ParsedDataSize: binary.LittleEndian.Uint32(qeReportAuthDataCertData[2:6]),
