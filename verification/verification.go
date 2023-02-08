@@ -89,9 +89,6 @@ func ParseQuote(rawQuote []byte) SGXQuote4 {
 		Reportdata:     [64]byte(rawQuote[568:632]),
 	}
 
-	// Good job Intel for f***ing up the calculation in the source. The offset here is NOT 656, but 632.
-	// You can reproduce this by seeing that the Header is 48 bytes large, and the report Body 584 bytes.
-	// 584 + 48 is 632. That's not 656, Intel! 🤦🏻‍♂️
 	signatureLength := binary.LittleEndian.Uint32(rawQuote[632:636])
 
 	return SGXQuote4{
