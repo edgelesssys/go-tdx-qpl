@@ -109,7 +109,7 @@ type SGXReport2 struct {
 	MROWNER        [48]byte    // SHA384
 	MROWNERCONFIG  [48]byte    // SHA384
 	RTMR           [4][48]byte // 4x SHA384 - runtime measurements
-	Reportdata     [64]byte    // Likely UserData from the original TDREPORT
+	ReportData     [64]byte    // Likely UserData from the original TDREPORT
 }
 
 // SGXQuote4 is an SGX/TDX quote compatible with v4 of the TrustedPlatform API.
@@ -156,7 +156,7 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 		MROWNER:        [48]byte(rawQuote[280:328]),
 		MROWNERCONFIG:  [48]byte(rawQuote[328:376]),
 		RTMR:           [4][48]byte{[48]byte(rawQuote[376:424]), [48]byte(rawQuote[424:472]), [48]byte(rawQuote[472:520]), [48]byte(rawQuote[520:568])},
-		Reportdata:     [64]byte(rawQuote[568:632]),
+		ReportData:     [64]byte(rawQuote[568:632]),
 	}
 
 	signatureLength := binary.LittleEndian.Uint32(rawQuote[632:636])
