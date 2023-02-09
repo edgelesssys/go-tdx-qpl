@@ -10,7 +10,8 @@ import (
 
    You are about to deep-dive into the inner technical structure of Intel TDX/SGX.
    This parser tries to reimplement the same structs as the original QvL code this was inspired from, using the original
-   namings as close as possible. The sources are given in the comments below.
+   namings as close as possible. The implemented API version is v4, others are not supported yet.
+   The sources for the struct for each part are given in the comments below.
 
    To give a *rough* understanding on what this looks like and what function does what, see this graphic I made below:
 
