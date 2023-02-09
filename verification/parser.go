@@ -225,8 +225,8 @@ type EnclaveReport struct {
 	Reserved2  [32]byte
 	MRSIGNER   [32]byte
 	Reserved3  [96]byte
-	isvProdID  uint16
-	isvSVN     uint16
+	ISVProdID  uint16
+	ISVSVN     uint16
 	Reserved4  [60]byte
 	ReportData [64]byte
 }
@@ -296,8 +296,8 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 			Reserved2:  [32]byte(qeReportCertData[96:128]),
 			MRSIGNER:   [32]byte(qeReportCertData[128:160]),
 			Reserved3:  [96]byte(qeReportCertData[160:256]),
-			isvProdID:  binary.LittleEndian.Uint16(qeReportCertData[256:258]),
-			isvSVN:     binary.LittleEndian.Uint16(qeReportCertData[258:260]),
+			ISVProdID:  binary.LittleEndian.Uint16(qeReportCertData[256:258]),
+			ISVSVN:     binary.LittleEndian.Uint16(qeReportCertData[258:260]),
 			Reserved4:  [60]byte(qeReportCertData[260:320]),
 			ReportData: [64]byte(qeReportCertData[320:384]),
 		},
