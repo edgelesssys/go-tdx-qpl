@@ -257,12 +257,13 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.Type is of unexpected (expected PCK_ID_QE_REPORT_CERTIFICATION_DATA (6), got %d)", quoteSignature.CertificationData.Type)
 	}
 
-	endQEReportCertData := 134 + quoteSignature.CertificationData.ParsedDataSize
-	if int(endQEReportCertData) > signatureLength {
+	// Upgrade to uint64 since we could overflow if ParsedDataSize is close to the top of uint32.
+	endQEReportCertData := uint64(134 + quoteSignature.CertificationData.ParsedDataSize)
+	if endQEReportCertData > uint64(signatureLength) {
 		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endQEReportCertData-134, signatureLength-134)
 	}
 
-	qeReportCertDataBytes := signature[134 : 134+quoteSignature.CertificationData.ParsedDataSize]
+	qeReportCertDataBytes := signature[134:endQEReportCertData]
 	expectedDataSize := int(quoteSignature.CertificationData.ParsedDataSize)
 	actualDataSize := len(qeReportCertDataBytes)
 	if expectedDataSize != actualDataSize {
@@ -307,8 +308,9 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 		},
 	}
 
-	endQEAuthData := 450 + qeReport.QEAuthData.ParsedDataSize
-	if int(endQEAuthData) > qeReportCertDataLength {
+	// Upgrade to uint32 since we could overflow if ParsedDataSize is close to the top of uint16.
+	endQEAuthData := 450 + uint32(qeReport.QEAuthData.ParsedDataSize)
+	if endQEAuthData > uint32(qeReportCertDataLength) {
 		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeReport.QEAuthData.ParsedDataSize-450, qeReportCertDataLength-450)
 	}
 
@@ -347,12 +349,13 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 		return CertificationData{}, fmt.Errorf("signature.CertificationData.Type is of unexpected (expected PCK_ID_PCK_CERT_CHAIN (5), got %d)", qeAuthDataInnerCertData.Type)
 	}
 
-	endQEAuthDataInnerCertData := 6 + qeAuthDataInnerCertData.ParsedDataSize
-	if int(endQEAuthDataInnerCertData) > qeReportAuthDataCertDataLength {
+	// Upgrade to uint64 since we could overflow if ParsedDataSize is close to the top of uint32.
+	endQEAuthDataInnerCertData := 6 + uint64(qeAuthDataInnerCertData.ParsedDataSize)
+	if endQEAuthDataInnerCertData > uint64(qeReportAuthDataCertDataLength) {
 		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeAuthDataInnerCertData.ParsedDataSize-6, qeReportAuthDataCertDataLength-6)
 	}
 
-	data := qeReportAuthDataCertData[6 : 6+qeAuthDataInnerCertData.ParsedDataSize]
+	data := qeReportAuthDataCertData[6:endQEAuthDataInnerCertData]
 	expectedParsedDataSize := int(qeAuthDataInnerCertData.ParsedDataSize)
 	actualParsedDataSize := len(data)
 	if expectedParsedDataSize != actualParsedDataSize {
