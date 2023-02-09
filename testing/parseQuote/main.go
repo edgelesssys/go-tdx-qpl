@@ -14,7 +14,7 @@ func main() {
 }
 
 func parseBlob() error {
-	rawQuote, err := os.ReadFile("blobs/quote")
+	rawQuote, err := os.ReadFile("../../blobs/quote")
 	if err != nil {
 		return err
 	}
