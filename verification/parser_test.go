@@ -49,3 +49,47 @@ func TestParseQuote(t *testing.T) {
 	assert.NotEmpty(block)
 	assert.Equal([]byte{0x0}, rest) // C terminated string with 0x0 byte
 }
+
+func FuzzParseQuote(f *testing.F) {
+	f.Fuzz(func(t *testing.T, a []byte) {
+		assert := assert.New(t)
+		quote, err := ParseQuote(a)
+		// This assumption is, of course, not very useful since there could be a seemingly valid input.
+		// But we mainly care about panics for now.
+		assert.Empty(quote)
+		assert.Error(err)
+	})
+}
+
+func FuzzParseSignature(f *testing.F) {
+	f.Fuzz(func(t *testing.T, a []byte) {
+		assert := assert.New(t)
+		quote, err := parseSignature(a)
+		// This assumption is, of course, not very useful since there could be a seemingly valid input.
+		// But we mainly care about panics for now.
+		assert.Empty(quote)
+		assert.Error(err)
+	})
+}
+
+func FuzzParseQEReportCertificationData(f *testing.F) {
+	f.Fuzz(func(t *testing.T, a []byte) {
+		assert := assert.New(t)
+		quote, err := parseQEReportCertificationData(a)
+		// This assumption is, of course, not very useful since there could be a seemingly valid input.
+		// But we mainly care about panics for now.
+		assert.Empty(quote)
+		assert.Error(err)
+	})
+}
+
+func FuzzParseQEReportInnerCertificationData(f *testing.F) {
+	f.Fuzz(func(t *testing.T, a []byte) {
+		assert := assert.New(t)
+		quote, err := parseQEReportInnerCertificationData(a)
+		// This assumption is, of course, not very useful since there could be a seemingly valid input.
+		// But we mainly care about panics for now.
+		assert.Empty(quote)
+		assert.Error(err)
+	})
+}
