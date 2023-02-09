@@ -2,6 +2,7 @@ package verification
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 /*
@@ -42,7 +43,12 @@ type SGXQuote4 struct {
 	Signature       ECDSA256QuoteV4AuthData
 }
 
-func ParseQuote(rawQuote []byte) SGXQuote4 {
+func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
+	quoteLength := len(rawQuote)
+	if len(rawQuote) <= 636 {
+		return SGXQuote4{}, fmt.Errorf("quote structure is too short to be parsed (received: %d bytes)", quoteLength)
+	}
+
 	quoteHeader := SGXQuote4Header{
 		Version:            binary.LittleEndian.Uint16(rawQuote[0:2]),
 		AttestationKeyType: binary.LittleEndian.Uint16(rawQuote[2:4]),
@@ -68,13 +74,28 @@ func ParseQuote(rawQuote []byte) SGXQuote4 {
 	}
 
 	signatureLength := binary.LittleEndian.Uint32(rawQuote[632:636])
+	endSignature := 636 + signatureLength
+	if int(endSignature) > quoteLength {
+		return SGXQuote4{}, fmt.Errorf("quote SignatureLength is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endSignature-636, quoteLength-636)
+	}
+
+	signatureBytes := rawQuote[636 : 636+signatureLength]
+	expectedDataSize := int(signatureLength)
+	actualDataSize := len(signatureBytes)
+	if expectedDataSize != actualDataSize {
+		return SGXQuote4{}, fmt.Errorf("quote signature does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
+	}
+	signature, err := parseSignature(signatureBytes)
+	if err != nil {
+		return SGXQuote4{}, fmt.Errorf("failed parsing quote signature: %w", err)
+	}
 
 	return SGXQuote4{
 		Header:          quoteHeader,
 		Body:            body,
 		SignatureLength: signatureLength,
-		Signature:       parseSignature(rawQuote[636 : 636+signatureLength]),
-	}
+		Signature:       signature,
+	}, nil
 }
 
 /*
@@ -126,7 +147,12 @@ type QEReportCertificationData struct {
 	CertificationData CertificationData
 }
 
-func parseSignature(signature []byte) ECDSA256QuoteV4AuthData {
+func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
+	signatureLength := len(signature)
+	if signatureLength < 134 {
+		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature is too short to be parsed (received: %d bytes)", signatureLength)
+	}
+
 	quoteSignature := ECDSA256QuoteV4AuthData{
 		Signature: [64]byte(signature[0:64]),   // ECDSA256 signature
 		PublicKey: [64]byte(signature[64:128]), // ECDSA256 public key
@@ -136,48 +162,101 @@ func parseSignature(signature []byte) ECDSA256QuoteV4AuthData {
 		},
 	}
 
-	quoteSignature.CertificationData.Data = parseQECertificationData(signature[134 : 134+quoteSignature.CertificationData.ParsedDataSize])
+	endQEReportCertData := 134 + quoteSignature.CertificationData.ParsedDataSize
+	if int(endQEReportCertData) > signatureLength {
+		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endQEReportCertData-134, signatureLength-134)
+	}
 
-	return quoteSignature
+	qeReportCertDataBytes := signature[134 : 134+quoteSignature.CertificationData.ParsedDataSize]
+	expectedDataSize := int(quoteSignature.CertificationData.ParsedDataSize)
+	actualDataSize := len(qeReportCertDataBytes)
+	if expectedDataSize != actualDataSize {
+		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
+	}
+
+	qeReportCertData, err := parseQEReportCertificationData(qeReportCertDataBytes)
+	if err != nil {
+		return ECDSA256QuoteV4AuthData{}, err
+	}
+
+	quoteSignature.CertificationData.Data = qeReportCertData
+
+	return quoteSignature, nil
 }
 
-func parseQECertificationData(qeReportData []byte) QEReportCertificationData {
+func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificationData, error) {
+	qeReportCertDataLength := len(qeReportCertData)
+	if qeReportCertDataLength < 450 {
+		return QEReportCertificationData{}, fmt.Errorf("QEReportCertificationData is too short to be parsed (received: %d bytes)", qeReportCertDataLength)
+	}
+
 	qeReport := QEReportCertificationData{
 		EnclaveReport: EnclaveReport{
-			CPUSVN:     [16]byte(qeReportData[0:16]),
-			MiscSelect: binary.LittleEndian.Uint32(qeReportData[16:20]),
-			Reserved1:  [28]byte(qeReportData[20:48]),
-			Attributes: [16]byte(qeReportData[48:64]),
-			MRENCLAVE:  [32]byte(qeReportData[64:96]),
-			Reserved2:  [32]byte(qeReportData[96:128]),
-			MRSIGNER:   [32]byte(qeReportData[128:160]),
-			Reserved3:  [96]byte(qeReportData[160:256]),
-			isvProdID:  binary.LittleEndian.Uint16(qeReportData[256:258]),
-			isvSVN:     binary.LittleEndian.Uint16(qeReportData[258:260]),
-			Reserved4:  [60]byte(qeReportData[260:320]),
-			ReportData: [64]byte(qeReportData[320:384]),
+			CPUSVN:     [16]byte(qeReportCertData[0:16]),
+			MiscSelect: binary.LittleEndian.Uint32(qeReportCertData[16:20]),
+			Reserved1:  [28]byte(qeReportCertData[20:48]),
+			Attributes: [16]byte(qeReportCertData[48:64]),
+			MRENCLAVE:  [32]byte(qeReportCertData[64:96]),
+			Reserved2:  [32]byte(qeReportCertData[96:128]),
+			MRSIGNER:   [32]byte(qeReportCertData[128:160]),
+			Reserved3:  [96]byte(qeReportCertData[160:256]),
+			isvProdID:  binary.LittleEndian.Uint16(qeReportCertData[256:258]),
+			isvSVN:     binary.LittleEndian.Uint16(qeReportCertData[258:260]),
+			Reserved4:  [60]byte(qeReportCertData[260:320]),
+			ReportData: [64]byte(qeReportCertData[320:384]),
 		},
-		Signature: [64]byte(qeReportData[384:448]),
+		Signature: [64]byte(qeReportCertData[384:448]),
 		QEAuthData: QEAuthData{
-			ParsedDataSize: binary.LittleEndian.Uint16(qeReportData[448:450]),
+			ParsedDataSize: binary.LittleEndian.Uint16(qeReportCertData[448:450]),
 		},
 	}
 
 	endQEAuthData := 450 + qeReport.QEAuthData.ParsedDataSize
-	qeReport.QEAuthData.Data = qeReportData[450:endQEAuthData]
-	qeReport.CertificationData = parseQEAuthDataCertificationData(qeReportData[endQEAuthData:])
+	if int(endQEAuthData) > qeReportCertDataLength {
+		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeReport.QEAuthData.ParsedDataSize-450, qeReportCertDataLength-450)
+	}
 
-	return qeReport
+	qeAuthData := qeReportCertData[450:endQEAuthData]
+	expectedDataSize := int(qeReport.QEAuthData.ParsedDataSize)
+	actualDataSize := len(qeAuthData)
+	if expectedDataSize != actualDataSize {
+		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
+	}
+	qeReport.QEAuthData.Data = qeAuthData
+
+	// There's no expected data size here, so the callee does the size check at the beginning.
+	qeReportCertDataCertData, err := parseQEReportCertificationDataCertificationData(qeReportCertData[endQEAuthData:])
+	if err != nil {
+		return QEReportCertificationData{}, err
+	}
+	qeReport.CertificationData = qeReportCertDataCertData
+
+	return qeReport, nil
 }
 
-func parseQEAuthDataCertificationData(qeReportAuthDataCertData []byte) CertificationData {
+func parseQEReportCertificationDataCertificationData(qeReportAuthDataCertData []byte) (CertificationData, error) {
+	qeReportAuthDataCertDataLength := len(qeReportAuthDataCertData)
+	if qeReportAuthDataCertDataLength <= 6 {
+		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData is too short to be parsed (received: %d bytes)", qeReportAuthDataCertDataLength)
+	}
 	qeAuthDataCertData := CertificationData{
 		Type:           binary.LittleEndian.Uint16(qeReportAuthDataCertData[0:2]),
 		ParsedDataSize: binary.LittleEndian.Uint32(qeReportAuthDataCertData[2:6]),
 	}
 
+	endQEAuthDataCertDataData := 6 + qeAuthDataCertData.ParsedDataSize
+	if int(endQEAuthDataCertDataData) > qeReportAuthDataCertDataLength {
+		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeAuthDataCertData.ParsedDataSize-6, qeReportAuthDataCertDataLength-6)
+	}
+
 	data := qeReportAuthDataCertData[6 : 6+qeAuthDataCertData.ParsedDataSize]
+	expectedParsedDataSize := int(qeAuthDataCertData.ParsedDataSize)
+	actualParsedDataSize := len(data)
+	if expectedParsedDataSize != actualParsedDataSize {
+		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedParsedDataSize, actualParsedDataSize)
+	}
+
 	qeAuthDataCertData.Data = data
 
-	return qeAuthDataCertData
+	return qeAuthDataCertData, nil
 }
