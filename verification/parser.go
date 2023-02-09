@@ -74,8 +74,17 @@ import (
    https://github.com/intel/linux-sgx/blob/d5e10dfbd7381bcd47eb25d2dc1d2da4e9a91e70/common/inc/sgx_report2.h#L61
 */
 
+// TEETypeSGX is the type number referenced in the Quote header for SGX quotes.
 const TEETypeSGX = 0x0
+
+// TEETypeTDX is the type number referenced in the Quote header for TDX quotes.
 const TEETypeTDX = 0x81
+
+// PCK_ID_PCK_CERT_CHAIN is the CertificationData type holding the PCK cert chain (encoded in PEM, \0 byte terminated)
+const PCK_ID_PCK_CERT_CHAIN = 5
+
+// PCK_ID_QE_REPORT_CERTIFICATION_DATA is the CertificationData type holding QEReportCertificationData data.
+const PCK_ID_QE_REPORT_CERTIFICATION_DATA = 6
 
 type SGXQuote4Header struct {
 	Version            uint16
@@ -235,6 +244,10 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 		},
 	}
 
+	if quoteSignature.CertificationData.Type != PCK_ID_QE_REPORT_CERTIFICATION_DATA {
+		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.Type is of unexpected (expected PCK_ID_QE_REPORT_CERTIFICATION_DATA (6), got %d)", quoteSignature.CertificationData.Type)
+	}
+
 	endQEReportCertData := 134 + quoteSignature.CertificationData.ParsedDataSize
 	if int(endQEReportCertData) > signatureLength {
 		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endQEReportCertData-134, signatureLength-134)
@@ -315,6 +328,10 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	qeAuthDataInnerCertData := CertificationData{
 		Type:           binary.LittleEndian.Uint16(qeReportAuthDataCertData[0:2]),
 		ParsedDataSize: binary.LittleEndian.Uint32(qeReportAuthDataCertData[2:6]),
+	}
+
+	if qeAuthDataInnerCertData.Type != PCK_ID_PCK_CERT_CHAIN {
+		return CertificationData{}, fmt.Errorf("signature.CertificationData.Type is of unexpected (expected PCK_ID_PCK_CERT_CHAIN (5), got %d)", qeAuthDataInnerCertData.Type)
 	}
 
 	endQEAuthDataInnerCertData := 6 + qeAuthDataInnerCertData.ParsedDataSize
