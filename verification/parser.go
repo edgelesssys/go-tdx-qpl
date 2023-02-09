@@ -86,6 +86,7 @@ const PCK_ID_PCK_CERT_CHAIN = 5
 // PCK_ID_QE_REPORT_CERTIFICATION_DATA is the CertificationData type holding QEReportCertificationData data.
 const PCK_ID_QE_REPORT_CERTIFICATION_DATA = 6
 
+// SGXQuote4Header is the header of an SGX/TDX quote compatible with v4 of the TrustedPlatform API.
 type SGXQuote4Header struct {
 	Version            uint16
 	AttestationKeyType uint16
@@ -95,6 +96,7 @@ type SGXQuote4Header struct {
 	UserData           [20]byte
 }
 
+// SGXReport2 is a TDReport for Intel TDX platforms, originally passed into the quote for signing.
 type SGXReport2 struct {
 	TCBSVN         [16]byte
 	MRSEAM         [48]byte    // SHA384
@@ -110,6 +112,7 @@ type SGXReport2 struct {
 	Reportdata     [64]byte    // Likely UserData from the original TDREPORT
 }
 
+// SGXQuote4 is an SGX/TDX quote compatible with v4 of the TrustedPlatform API.
 type SGXQuote4 struct {
 	Header          SGXQuote4Header
 	Body            SGXReport2
@@ -117,6 +120,7 @@ type SGXQuote4 struct {
 	Signature       ECDSA256QuoteV4AuthData
 }
 
+// ParseQuote parses an Intel TDX v4 Quote. The expected input is the complete quote.
 func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 	quoteLength := len(rawQuote)
 	if len(rawQuote) <= 636 {
@@ -186,6 +190,7 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
    https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteVerification/QVL/Src/AttestationLibrary/src/QuoteVerification/QuoteStructures.h
 */
 
+// ECDSA256QuoteV4AuthData is the signature of an Intel TDX v4 quote.
 type ECDSA256QuoteV4AuthData struct {
 	Signature         [64]byte
 	PublicKey         [64]byte
@@ -202,6 +207,15 @@ type CertificationData struct {
 	Data           any
 }
 
+// QEReportCertificationData holds the Quoting Enclave (QE) report, embedded as CertificationData in ECDSA256QuoteV4AuthData.
+type QEReportCertificationData struct {
+	EnclaveReport     EnclaveReport
+	Signature         [64]byte // ECDSA256 signature
+	QEAuthData        QEAuthData
+	CertificationData CertificationData
+}
+
+// EnclaveReport is the report of a Quoting Enclave for SGX and TDX. For TDX, this appears to be static values.
 type EnclaveReport struct {
 	CPUSVN     [16]byte
 	MiscSelect uint32
@@ -217,18 +231,13 @@ type EnclaveReport struct {
 	ReportData [64]byte
 }
 
+// QEAuthData holds the Quoting Enclave (QE) authentication data. For TDX, this appears to be static data.
 type QEAuthData struct {
 	ParsedDataSize uint16
 	Data           []byte
 }
 
-type QEReportCertificationData struct {
-	EnclaveReport     EnclaveReport
-	Signature         [64]byte // ECDSA256 signature
-	QEAuthData        QEAuthData
-	CertificationData CertificationData
-}
-
+// parseSignature parses a signature (ECDSA256QuoteV4AuthData) from a SGXQuote4.
 func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	signatureLength := len(signature)
 	if signatureLength < 134 {
@@ -270,6 +279,7 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	return quoteSignature, nil
 }
 
+// parseQEReportCertificationData parses a Quoting Enclave (QE) report embedded as CertificationData in ECDSA256QuoteV4AuthData.
 func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificationData, error) {
 	qeReportCertDataLength := len(qeReportCertData)
 	if qeReportCertDataLength < 450 {
@@ -310,6 +320,7 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 	}
 	qeReport.QEAuthData.Data = qeAuthData
 
+	// Parse CertificationData in an extra function to keep this function itself cleaner and readable.
 	// There's no expected data size here, so the callee does the size check at the beginning.
 	qeReportInnerCertData, err := parseQEReportInnerCertificationData(qeReportCertData[endQEAuthData:])
 	if err != nil {
@@ -320,6 +331,8 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 	return qeReport, nil
 }
 
+// parseQEReportInnerCertificationData parses CertificationData from a Quoting Enclave (QE) report (QEReportCertificationData).
+// This has been externalized into an extra function mainly for readability.
 func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (CertificationData, error) {
 	qeReportAuthDataCertDataLength := len(qeReportAuthDataCertData)
 	if qeReportAuthDataCertDataLength <= 6 {
