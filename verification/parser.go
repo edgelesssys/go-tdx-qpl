@@ -236,38 +236,38 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 	qeReport.QEAuthData.Data = qeAuthData
 
 	// There's no expected data size here, so the callee does the size check at the beginning.
-	qeReportCertDataCertData, err := parseQEReportCertificationDataCertificationData(qeReportCertData[endQEAuthData:])
+	qeReportInnerCertData, err := parseQEReportInnerCertificationData(qeReportCertData[endQEAuthData:])
 	if err != nil {
 		return QEReportCertificationData{}, err
 	}
-	qeReport.CertificationData = qeReportCertDataCertData
+	qeReport.CertificationData = qeReportInnerCertData
 
 	return qeReport, nil
 }
 
-func parseQEReportCertificationDataCertificationData(qeReportAuthDataCertData []byte) (CertificationData, error) {
+func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (CertificationData, error) {
 	qeReportAuthDataCertDataLength := len(qeReportAuthDataCertData)
 	if qeReportAuthDataCertDataLength <= 6 {
 		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData is too short to be parsed (received: %d bytes)", qeReportAuthDataCertDataLength)
 	}
-	qeAuthDataCertData := CertificationData{
+	qeAuthDataInnerCertData := CertificationData{
 		Type:           binary.LittleEndian.Uint16(qeReportAuthDataCertData[0:2]),
 		ParsedDataSize: binary.LittleEndian.Uint32(qeReportAuthDataCertData[2:6]),
 	}
 
-	endQEAuthDataCertDataData := 6 + qeAuthDataCertData.ParsedDataSize
-	if int(endQEAuthDataCertDataData) > qeReportAuthDataCertDataLength {
-		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeAuthDataCertData.ParsedDataSize-6, qeReportAuthDataCertDataLength-6)
+	endQEAuthDataInnerCertData := 6 + qeAuthDataInnerCertData.ParsedDataSize
+	if int(endQEAuthDataInnerCertData) > qeReportAuthDataCertDataLength {
+		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeAuthDataInnerCertData.ParsedDataSize-6, qeReportAuthDataCertDataLength-6)
 	}
 
-	data := qeReportAuthDataCertData[6 : 6+qeAuthDataCertData.ParsedDataSize]
-	expectedParsedDataSize := int(qeAuthDataCertData.ParsedDataSize)
+	data := qeReportAuthDataCertData[6 : 6+qeAuthDataInnerCertData.ParsedDataSize]
+	expectedParsedDataSize := int(qeAuthDataInnerCertData.ParsedDataSize)
 	actualParsedDataSize := len(data)
 	if expectedParsedDataSize != actualParsedDataSize {
 		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedParsedDataSize, actualParsedDataSize)
 	}
 
-	qeAuthDataCertData.Data = data
+	qeAuthDataInnerCertData.Data = data
 
-	return qeAuthDataCertData, nil
+	return qeAuthDataInnerCertData, nil
 }
