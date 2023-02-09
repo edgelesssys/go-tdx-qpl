@@ -6,71 +6,71 @@ import (
 )
 
 /*
-	If you found this code, my condolences! If you are about to maintain this code, I wish you very well not to lose yourself.
+   If you found this code, my condolences! If you are about to maintain this code, I wish you very well not to lose yourself.
 
-	You are about to deep-dive into the inner technical structure of Intel TDX/SGX.
-	This parser tries to reimplement the same structs as the original QvL code this was inspired from, using the original
-	namings as close as possible. The sources are given in the comments below.
+   You are about to deep-dive into the inner technical structure of Intel TDX/SGX.
+   This parser tries to reimplement the same structs as the original QvL code this was inspired from, using the original
+   namings as close as possible. The sources are given in the comments below.
 
-	To give a *rough* understanding on what this looks like and what function does what, see this graphic I made below:
+   To give a *rough* understanding on what this looks like and what function does what, see this graphic I made below:
 
 
-									┌──────────────────────────┐                           ┌─────────────────────────┐
-									│                          │                           │                         │
-									│                          ▼                           │                         ▼
-			SGXQuote4               │                 ECDSA256QuoteV4Data                  │            QEReportCertificationData
-			ParseQuote              │                   parseSignature                     │          parseQEReportCertificationData
-	┌─────────────────────────┐     │     ┌───────────────────────────────────────────┐    │     ┌─────────────────────────────────────┐
-	│     SGXQuote4Header     │     │     │                Signature                  │    │     │                                     │
-	│       (48 bytes)        │     │     │                (64 bytes)                 │    │     │                                     │
-	├─────────────────────────┤     │     ├───────────────────────────────────────────┤    │     │            EnclaveReport            │
-	│                         │     │     │                PublicKey                  │    │     │             (384 bytes)             │
-	│       SGXREPORT2        │     │     │                (64 bytes)                 │    │     │                                     │
-	│       (TDREPORT)        │     │     ├───────────────────────────────────────────┤    │     │                                     │
-	│       (584 bytes)       │     │     │             CertificationData             │    │     ├─────────────────────────────────────┤
-	│                         │     │     │ ┌───────────────────────────────────────┐ │    │     │             Signature               │
-	│                         │     │     │ │                 Type                  │ │    │     │             (64 bytes)              │
-	├─────────────────────────┤     │     │ │               (2 bytes)               │ │    │     ├─────────────────────────────────────┤
-	│     SignatureLength     │     │     │ │                                       │ │    │     │             QEAuthData              │
-	│        (4 bytes)        │     │     │ │               type == 6               │ │    │     │  ┌────────────────────────────────┐ │
-	├─────────────────────────┤     │     │ │  PCK_ID_QE_REPORT_CERTIFICATION_DATA  │ │    │     │  │        ParsedDataSize          │ │
-	│                         │     │     │ │                                       │ │    │     │  │           (4 bytes)            │ │
-	│                         │     │     │ ├───────────────────────────────────────┤ │    │     │  ├────────────────────────────────┤ │
-	│                         │     │     │ │            ParsedDataSize             │ │    │     │  │             Data               │ │
-	│                         │     │     │ │               (4 bytes)               │ │    │     │  │          (variable)            │ │
-	│       Signature         │     │     │ ├───────────────────────────────────────┤ │    │     │  └────────────────────────────────┘ │
-	│ ECDSA256QuoteV4AuthData │     │     │ │                 Data                  │ │    │     │                                     │
-	│       (variable)        ├─────┘     │ │              (variable)               │ │    │     ├─────────────────────────────────────┤
-	│                         │           │ │                                       │ │    │     │          CertificationData          │
-	│                         │           │ │        QEReportCertificationData      ├─┼────┘     │ parseQEReportInnerCertificationData │
-	│                         │           │ │                                       │ │          │                                     │
-	│                         │           │ └───────────────────────────────────────┘ │          │ ┌─────────────────────────────────┐ │
-	│                         │           │                                           │          │ │              Type               │ │
-	└─────────────────────────┘           └───────────────────────────────────────────┘          │ │            (2 bytes)            │ │
-																								 │ │                                 │ │
-																								 │ │            type == 5            │ │
-																								 │ │      PCK_ID_PCK_CERT_CHAIN      │ │
-																								 │ ├─────────────────────────────────┤ │
-																								 │ │         ParsedDataSize          │ │
-																								 │ │            (4 bytes)            │ │
-																								 │ ├─────────────────────────────────┤ │
-																								 │ │              Data               │ │
-																								 │ │            (variable)           │ │
-																								 │ │                                 │ │
-																								 │ │            []byte               │ │
-																								 │ │   (contains a PEM certificate)  │ │
-																								 │ │      terminated with \0 byte    │ │
-																								 │ │                                 │ │
-																								 │ └─────────────────────────────────┘ │
-																								 │                                     │
-																								 └─────────────────────────────────────┘
+                                   ┌──────────────────────────┐                           ┌─────────────────────────┐
+                                   │                          │                           │                         │
+                                   │                          ▼                           │                         ▼
+           SGXQuote4               │                 ECDSA256QuoteV4Data                  │            QEReportCertificationData
+           ParseQuote              │                   parseSignature                     │          parseQEReportCertificationData
+   ┌─────────────────────────┐     │     ┌───────────────────────────────────────────┐    │     ┌─────────────────────────────────────┐
+   │     SGXQuote4Header     │     │     │                Signature                  │    │     │                                     │
+   │       (48 bytes)        │     │     │                (64 bytes)                 │    │     │                                     │
+   ├─────────────────────────┤     │     ├───────────────────────────────────────────┤    │     │            EnclaveReport            │
+   │                         │     │     │                PublicKey                  │    │     │             (384 bytes)             │
+   │       SGXREPORT2        │     │     │                (64 bytes)                 │    │     │                                     │
+   │       (TDREPORT)        │     │     ├───────────────────────────────────────────┤    │     │                                     │
+   │       (584 bytes)       │     │     │             CertificationData             │    │     ├─────────────────────────────────────┤
+   │                         │     │     │ ┌───────────────────────────────────────┐ │    │     │             Signature               │
+   │                         │     │     │ │                 Type                  │ │    │     │             (64 bytes)              │
+   ├─────────────────────────┤     │     │ │               (2 bytes)               │ │    │     ├─────────────────────────────────────┤
+   │     SignatureLength     │     │     │ │                                       │ │    │     │             QEAuthData              │
+   │        (4 bytes)        │     │     │ │               type == 6               │ │    │     │  ┌────────────────────────────────┐ │
+   ├─────────────────────────┤     │     │ │  PCK_ID_QE_REPORT_CERTIFICATION_DATA  │ │    │     │  │        ParsedDataSize          │ │
+   │                         │     │     │ │                                       │ │    │     │  │           (4 bytes)            │ │
+   │                         │     │     │ ├───────────────────────────────────────┤ │    │     │  ├────────────────────────────────┤ │
+   │                         │     │     │ │            ParsedDataSize             │ │    │     │  │             Data               │ │
+   │                         │     │     │ │               (4 bytes)               │ │    │     │  │          (variable)            │ │
+   │       Signature         │     │     │ ├───────────────────────────────────────┤ │    │     │  └────────────────────────────────┘ │
+   │ ECDSA256QuoteV4AuthData │     │     │ │                 Data                  │ │    │     │                                     │
+   │       (variable)        ├─────┘     │ │              (variable)               │ │    │     ├─────────────────────────────────────┤
+   │                         │           │ │                                       │ │    │     │          CertificationData          │
+   │                         │           │ │        QEReportCertificationData      ├─┼────┘     │ parseQEReportInnerCertificationData │
+   │                         │           │ │                                       │ │          │                                     │
+   │                         │           │ └───────────────────────────────────────┘ │          │ ┌─────────────────────────────────┐ │
+   │                         │           │                                           │          │ │              Type               │ │
+   └─────────────────────────┘           └───────────────────────────────────────────┘          │ │            (2 bytes)            │ │
+                                                                                                │ │                                 │ │
+                                                                                                │ │            type == 5            │ │
+                                                                                                │ │      PCK_ID_PCK_CERT_CHAIN      │ │
+                                                                                                │ ├─────────────────────────────────┤ │
+                                                                                                │ │         ParsedDataSize          │ │
+                                                                                                │ │            (4 bytes)            │ │
+                                                                                                │ ├─────────────────────────────────┤ │
+                                                                                                │ │              Data               │ │
+                                                                                                │ │            (variable)           │ │
+                                                                                                │ │                                 │ │
+                                                                                                │ │            []byte               │ │
+                                                                                                │ │   (contains a PEM certificate)  │ │
+                                                                                                │ │      terminated with \0 byte    │ │
+                                                                                                │ │                                 │ │
+                                                                                                │ └─────────────────────────────────┘ │
+                                                                                                │                                     │
+                                                                                                └─────────────────────────────────────┘
 */
 
 /*
-	TDX (SGX Quote 4 / SGX Report 2) Quote parser
-	Based on:
-	https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_4.h#L113
-	https://github.com/intel/linux-sgx/blob/d5e10dfbd7381bcd47eb25d2dc1d2da4e9a91e70/common/inc/sgx_report2.h#L61
+   TDX (SGX Quote 4 / SGX Report 2) Quote parser
+   Based on:
+   https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/common/inc/sgx_quote_4.h#L113
+   https://github.com/intel/linux-sgx/blob/d5e10dfbd7381bcd47eb25d2dc1d2da4e9a91e70/common/inc/sgx_report2.h#L61
 */
 
 const TEETypeSGX = 0x0
@@ -171,9 +171,9 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 }
 
 /*
-	TDX Quote Signature Parsing
-	Based on:
-	https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteVerification/QVL/Src/AttestationLibrary/src/QuoteVerification/QuoteStructures.h
+   TDX Quote Signature Parsing
+   Based on:
+   https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteVerification/QVL/Src/AttestationLibrary/src/QuoteVerification/QuoteStructures.h
 */
 
 type ECDSA256QuoteV4AuthData struct {
