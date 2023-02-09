@@ -264,8 +264,8 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	}
 
 	qeReportCertDataBytes := signature[134:endQEReportCertData]
-	expectedDataSize := int(quoteSignature.CertificationData.ParsedDataSize)
-	actualDataSize := len(qeReportCertDataBytes)
+	expectedDataSize := quoteSignature.CertificationData.ParsedDataSize
+	actualDataSize := uint32(len(qeReportCertDataBytes))
 	if expectedDataSize != actualDataSize {
 		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
 	}
@@ -315,8 +315,8 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 	}
 
 	qeAuthData := qeReportCertData[450:endQEAuthData]
-	expectedDataSize := int(qeReport.QEAuthData.ParsedDataSize)
-	actualDataSize := len(qeAuthData)
+	expectedDataSize := qeReport.QEAuthData.ParsedDataSize
+	actualDataSize := uint16(len(qeAuthData))
 	if expectedDataSize != actualDataSize {
 		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
 	}
@@ -356,8 +356,8 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	}
 
 	data := qeReportAuthDataCertData[6:endQEAuthDataInnerCertData]
-	expectedParsedDataSize := int(qeAuthDataInnerCertData.ParsedDataSize)
-	actualParsedDataSize := len(data)
+	expectedParsedDataSize := qeAuthDataInnerCertData.ParsedDataSize
+	actualParsedDataSize := uint32(len(data))
 	if expectedParsedDataSize != actualParsedDataSize {
 		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedParsedDataSize, actualParsedDataSize)
 	}
