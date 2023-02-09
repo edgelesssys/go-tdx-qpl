@@ -12,6 +12,9 @@ import (
 	https://github.com/intel/linux-sgx/blob/d5e10dfbd7381bcd47eb25d2dc1d2da4e9a91e70/common/inc/sgx_report2.h#L61
 */
 
+const TEETypeSGX = 0x0
+const TEETypeTDX = 0x81
+
 type SGXQuote4Header struct {
 	Version            uint16
 	AttestationKeyType uint16
@@ -56,6 +59,14 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 		Reserved:           binary.LittleEndian.Uint32(rawQuote[8:12]),
 		VendorID:           [16]byte(rawQuote[12:28]),
 		UserData:           [20]byte(rawQuote[28:48]),
+	}
+
+	if quoteHeader.Version != 4 {
+		return SGXQuote4{}, fmt.Errorf("quote version is not 4 (got: %d)", quoteHeader.Version)
+	}
+
+	if quoteHeader.TEEType != TEETypeTDX {
+		return SGXQuote4{}, fmt.Errorf("quote does not appear to be a TDX quote (expected TEEType: %d, got: %d)", TEETypeTDX, quoteHeader.TEEType)
 	}
 
 	body := SGXReport2{
