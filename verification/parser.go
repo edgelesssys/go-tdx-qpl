@@ -162,7 +162,7 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 	signatureLength := binary.LittleEndian.Uint32(rawQuote[632:636])
 	endSignature := 636 + signatureLength
 	if int(endSignature) > quoteLength {
-		return SGXQuote4{}, fmt.Errorf("quote SignatureLength is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endSignature-636, quoteLength-636)
+		return SGXQuote4{}, fmt.Errorf("quote SignatureLength is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endSignature, quoteLength-636)
 	}
 
 	signatureBytes := rawQuote[636 : 636+signatureLength]
@@ -260,7 +260,7 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	// Upgrade to uint64 since we could overflow if ParsedDataSize is close to the top of uint32.
 	endQEReportCertData := uint64(134 + quoteSignature.CertificationData.ParsedDataSize)
 	if endQEReportCertData > uint64(signatureLength) {
-		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endQEReportCertData-134, signatureLength-134)
+		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endQEReportCertData, signatureLength-134)
 	}
 
 	qeReportCertDataBytes := signature[134:endQEReportCertData]
@@ -314,7 +314,7 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 	// Upgrade to uint32 since we could overflow if ParsedDataSize is close to the top of uint16.
 	endQEAuthData := 450 + uint32(qeReport.QEAuthData.ParsedDataSize)
 	if endQEAuthData > uint32(qeReportCertDataLength) {
-		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeReport.QEAuthData.ParsedDataSize-450, qeReportCertDataLength-450)
+		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeReport.QEAuthData.ParsedDataSize, qeReportCertDataLength-450)
 	}
 
 	qeAuthData := qeReportCertData[450:endQEAuthData]
@@ -358,7 +358,7 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	// Upgrade to uint64 since we could overflow if ParsedDataSize is close to the top of uint32.
 	endQEAuthDataInnerCertData := 6 + uint64(qeAuthDataInnerCertData.ParsedDataSize)
 	if endQEAuthDataInnerCertData > uint64(qeReportAuthDataCertDataLength) {
-		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeAuthDataInnerCertData.ParsedDataSize-6, qeReportAuthDataCertDataLength-6)
+		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", qeAuthDataInnerCertData.ParsedDataSize, qeReportAuthDataCertDataLength-6)
 	}
 
 	data := qeReportAuthDataCertData[6:endQEAuthDataInnerCertData]
