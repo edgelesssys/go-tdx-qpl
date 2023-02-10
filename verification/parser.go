@@ -262,7 +262,7 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	}
 
 	// Upgrade to uint64 since we could overflow if ParsedDataSize is close to the top of uint32.
-	endQEReportCertData := uint64(134 + quoteSignature.CertificationData.ParsedDataSize)
+	endQEReportCertData := 134 + uint64(quoteSignature.CertificationData.ParsedDataSize)
 	if endQEReportCertData > uint64(signatureLength) {
 		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", quoteSignature.CertificationData.ParsedDataSize, signatureLength-134)
 	}
