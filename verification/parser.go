@@ -264,8 +264,11 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	}
 
 	qeReportCertDataBytes := signature[134:endQEReportCertData]
-	expectedDataSize := quoteSignature.CertificationData.ParsedDataSize
-	actualDataSize := uint32(len(qeReportCertDataBytes))
+	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
+	// If you don't touch this code, it should either panic or be constant anyway.
+	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
+	expectedDataSize := uint64(quoteSignature.CertificationData.ParsedDataSize)
+	actualDataSize := uint64(len(qeReportCertDataBytes))
 	if expectedDataSize != actualDataSize {
 		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
 	}
@@ -315,8 +318,11 @@ func parseQEReportCertificationData(qeReportCertData []byte) (QEReportCertificat
 	}
 
 	qeAuthData := qeReportCertData[450:endQEAuthData]
-	expectedDataSize := qeReport.QEAuthData.ParsedDataSize
-	actualDataSize := uint16(len(qeAuthData))
+	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
+	// If you don't touch this code, it should either panic or be constant anyway.
+	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
+	expectedDataSize := uint64(qeReport.QEAuthData.ParsedDataSize)
+	actualDataSize := uint64(len(qeAuthData))
 	if expectedDataSize != actualDataSize {
 		return QEReportCertificationData{}, fmt.Errorf("QEAuthData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
 	}
@@ -356,8 +362,11 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	}
 
 	data := qeReportAuthDataCertData[6:endQEAuthDataInnerCertData]
-	expectedParsedDataSize := qeAuthDataInnerCertData.ParsedDataSize
-	actualParsedDataSize := uint32(len(data))
+	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
+	// If you don't touch this code, it should either panic or be constant anyway.
+	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
+	expectedParsedDataSize := uint64(qeAuthDataInnerCertData.ParsedDataSize)
+	actualParsedDataSize := uint64(len(data))
 	if expectedParsedDataSize != actualParsedDataSize {
 		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData.Data does not match the defined size (expected: %d bytes, got: %d bytes)", expectedParsedDataSize, actualParsedDataSize)
 	}
