@@ -4,8 +4,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"log"
 	"math/big"
 	"os"
 	"testing"
@@ -89,4 +92,55 @@ func TestQEReportAttestKeyReportDataConcat(t *testing.T) {
 	concatSHA256 := sha256.Sum256(concat)
 
 	assert.Equal(concatSHA256[:], qeReport.EnclaveReport.ReportData[:32])
+}
+
+// 4.1.2.4.12
+func TestQEReportSignatureVerification(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	rawQuote, err := os.ReadFile("../blobs/quote")
+	require.NoError(err)
+
+	parsedQuote, err := ParseQuote(rawQuote)
+	require.NoError(err)
+
+	qeReport := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+	pemChain := qeReport.CertificationData.Data.([]byte)
+
+	// Parse certificate chain
+	pckLeafPEM, rest := pem.Decode(pemChain)
+	assert.NotEmpty(pckLeafPEM)
+	assert.NotEmpty(rest)
+	pckLeaf, err := x509.ParseCertificate(pckLeafPEM.Bytes)
+	assert.NoError(err)
+
+	pckIntermediatePEM, rest := pem.Decode(rest)
+	assert.NotEmpty(pckIntermediatePEM)
+	assert.NotEmpty(rest)
+
+	//pckIntermediate, err := x509.ParseCertificate(pckIntermediatePEM.Bytes)
+	//assert.NoError(err)
+
+	rootCAPEM, rest := pem.Decode(rest)
+	assert.NotEmpty(rootCAPEM)
+	assert.Equal([]byte{0x0}, rest) // C terminated string with 0x0 byte
+	//rootCA, err := x509.ParseCertificate(rootCAPEM.Bytes)
+	//assert.NoError(err)
+	enclaveReport := qeReport.EnclaveReport
+	log.Println(enclaveReport)
+
+	pckLeafECDSAPublicKey := pckLeaf.PublicKey.(*ecdsa.PublicKey)
+	signature := qeReport.Signature
+
+	rawEnclaveReport := rawQuote[770:1154] // TODO: Needs to be the bytes over the EnclaveReport, but in clean.
+	rawEnclaveReportHash := sha256.Sum256(rawEnclaveReport)
+
+	r := big.Int{}
+	s := big.Int{}
+	r.SetBytes(signature[:32])
+	s.SetBytes(signature[32:64])
+
+	verified := ecdsa.Verify(pckLeafECDSAPublicKey, rawEnclaveReportHash[:], &r, &s)
+	assert.True(verified)
 }
