@@ -53,43 +53,27 @@ func TestParseQuote(t *testing.T) {
 func FuzzParseQuote(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		quote, err := ParseQuote(a)
-		// This assumption is, of course, not very useful since there could be a seemingly valid input.
-		// But we mainly care about panics for now.
-		assert.Empty(quote)
-		assert.Error(err)
+		assert.NotPanics(func() { ParseQuote(a) })
 	})
 }
 
 func FuzzParseSignature(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		quote, err := parseSignature(a)
-		// This assumption is, of course, not very useful since there could be a seemingly valid input.
-		// But we mainly care about panics for now.
-		assert.Empty(quote)
-		assert.Error(err)
+		assert.NotPanics(func() { parseSignature(a) })
 	})
 }
 
 func FuzzParseQEReportCertificationData(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		quote, err := parseQEReportCertificationData(a)
-		// This assumption is, of course, not very useful since there could be a seemingly valid input.
-		// But we mainly care about panics for now.
-		assert.Empty(quote)
-		assert.Error(err)
+		assert.NotPanics(func() { parseQEReportCertificationData(a) })
 	})
 }
 
 func FuzzParseQEReportInnerCertificationData(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		quote, err := parseQEReportInnerCertificationData(a)
-		// This assumption is, of course, not very useful since there could be a seemingly valid input.
-		// But we mainly care about panics for now.
-		assert.Empty(quote)
-		assert.Error(err)
+		assert.NotPanics(func() { parseQEReportInnerCertificationData(a) })
 	})
 }
