@@ -11,6 +11,13 @@ import (
 	"testing"
 )
 
+/*
+	This is a collection of verification snippets which we later can use to build the full verification.
+	This is mainly done to understand how the crypto works.
+*/
+
+// 4.1.2.4.16
+// Use given public key & signature over SGXQuote4Header + SGXReport2.
 func TestQuoteSignatureVerificationBasic(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
@@ -22,7 +29,6 @@ func TestQuoteSignatureVerificationBasic(t *testing.T) {
 	require.NoError(err)
 
 	signature := parsedQuote.Signature.Signature
-	// TODO: How can we verify this publicKey? Where does it come from?
 	publicKey := parsedQuote.Signature.PublicKey // This key is called attestKey in Intel's code.
 	toVerify := sha256.Sum256(rawQuote[:632])    // Quote header + TDReport
 
@@ -60,4 +66,27 @@ func TestQuoteSignatureVerificationBasic(t *testing.T) {
 
 	verified := ecdsa.Verify(key, toVerify[:], &r, &s)
 	assert.True(verified)
+}
+
+// 4.1.2.4.13
+// Then, the public key from above is verified/authenticated over the QEReportCertificationData.
+// A hash over the AttestKey and the QEAuthData is added as report data to the QE EnclaveReport, which then is signed with the PCK (?).
+func TestQEReportAttestKeyReportDataConcat(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	rawQuote, err := os.ReadFile("../blobs/quote")
+	require.NoError(err)
+
+	parsedQuote, err := ParseQuote(rawQuote)
+	require.NoError(err)
+
+	qeReport := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+
+	attestKeyData := parsedQuote.Signature.PublicKey
+	qeAuthData := qeReport.QEAuthData.Data
+	concat := append(attestKeyData[:], qeAuthData...)
+	concatSHA256 := sha256.Sum256(concat)
+
+	assert.Equal(concatSHA256[:], qeReport.EnclaveReport.ReportData[:32])
 }
