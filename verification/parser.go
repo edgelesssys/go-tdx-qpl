@@ -160,14 +160,18 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 	}
 
 	signatureLength := binary.LittleEndian.Uint32(rawQuote[632:636])
-	endSignature := 636 + signatureLength
-	if int(endSignature) > quoteLength {
-		return SGXQuote4{}, fmt.Errorf("quote SignatureLength is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endSignature, quoteLength-636)
+	endSignature := uint64(636 + signatureLength)
+	if endSignature > uint64(quoteLength) {
+		return SGXQuote4{}, fmt.Errorf("quote SignatureLength is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", signatureLength, quoteLength-636)
 	}
 
-	signatureBytes := rawQuote[636 : 636+signatureLength]
-	expectedDataSize := int(signatureLength)
-	actualDataSize := len(signatureBytes)
+	signatureBytes := rawQuote[636:endSignature]
+
+	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
+	// If you don't touch this code, it should either panic or be constant anyway.
+	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
+	expectedDataSize := uint64(signatureLength)
+	actualDataSize := uint64(len(signatureBytes))
 	if expectedDataSize != actualDataSize {
 		return SGXQuote4{}, fmt.Errorf("quote signature does not match the defined size (expected: %d bytes, got: %d bytes)", expectedDataSize, actualDataSize)
 	}
@@ -260,7 +264,7 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	// Upgrade to uint64 since we could overflow if ParsedDataSize is close to the top of uint32.
 	endQEReportCertData := uint64(134 + quoteSignature.CertificationData.ParsedDataSize)
 	if endQEReportCertData > uint64(signatureLength) {
-		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", endQEReportCertData, signatureLength-134)
+		return ECDSA256QuoteV4AuthData{}, fmt.Errorf("signature.CertificationData.ParsedDataSize is either incorrect or data is truncated (requires at least: %d bytes, left: %d bytes)", quoteSignature.CertificationData.ParsedDataSize, signatureLength-134)
 	}
 
 	qeReportCertDataBytes := signature[134:endQEReportCertData]
