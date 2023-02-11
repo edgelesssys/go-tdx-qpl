@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"log"
 	"math/big"
 	"os"
 	"testing"
@@ -128,19 +127,17 @@ func TestQEReportSignatureVerification(t *testing.T) {
 	//rootCA, err := x509.ParseCertificate(rootCAPEM.Bytes)
 	//assert.NoError(err)
 	enclaveReport := qeReport.EnclaveReport
-	log.Println(enclaveReport)
+	marshaledEnclaveReport := enclaveReport.Marshal()
+	marshaledEnclaveReportHash := sha256.Sum256(marshaledEnclaveReport[:])
 
 	pckLeafECDSAPublicKey := pckLeaf.PublicKey.(*ecdsa.PublicKey)
 	signature := qeReport.Signature
-
-	rawEnclaveReport := rawQuote[770:1154] // TODO: Needs to be the bytes over the EnclaveReport, but in clean.
-	rawEnclaveReportHash := sha256.Sum256(rawEnclaveReport)
 
 	r := big.Int{}
 	s := big.Int{}
 	r.SetBytes(signature[:32])
 	s.SetBytes(signature[32:64])
 
-	verified := ecdsa.Verify(pckLeafECDSAPublicKey, rawEnclaveReportHash[:], &r, &s)
+	verified := ecdsa.Verify(pckLeafECDSAPublicKey, marshaledEnclaveReportHash[:], &r, &s)
 	assert.True(verified)
 }
