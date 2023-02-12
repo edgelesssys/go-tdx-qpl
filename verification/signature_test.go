@@ -32,7 +32,10 @@ func TestQuoteSignatureVerificationBasic(t *testing.T) {
 
 	signature := parsedQuote.Signature.Signature
 	publicKey := parsedQuote.Signature.PublicKey // This key is called attestKey in Intel's code.
-	toVerify := sha256.Sum256(rawQuote[:632])    // Quote header + TDReport
+
+	headerBytes := parsedQuote.Header.Marshal()
+	reportBytes := parsedQuote.Body.Marshal()
+	toVerify := sha256.Sum256(append(headerBytes[:], reportBytes[:]...)) // Quote header + TDReport
 
 	// It's crypto time!
 	key := &ecdsa.PublicKey{}

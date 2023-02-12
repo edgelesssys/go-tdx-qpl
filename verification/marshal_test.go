@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestSerializeEnclaveReport(t *testing.T) {
+func TestMarshalEnclaveReport(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
@@ -20,4 +20,32 @@ func TestSerializeEnclaveReport(t *testing.T) {
 	qeReport := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
 	enclaveReport := qeReport.EnclaveReport
 	assert.EqualValues(rawQuote[770:1154], enclaveReport.Marshal())
+}
+
+func TestMarshalQuotev4Header(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	rawQuote, err := os.ReadFile("../blobs/quote")
+	require.NoError(err)
+
+	parsedQuote, err := ParseQuote(rawQuote)
+	require.NoError(err)
+
+	quoteHeader := parsedQuote.Header
+	assert.EqualValues(rawQuote[0:48], quoteHeader.Marshal())
+}
+
+func TestMarshalSGXReport4(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	rawQuote, err := os.ReadFile("../blobs/quote")
+	require.NoError(err)
+
+	parsedQuote, err := ParseQuote(rawQuote)
+	require.NoError(err)
+
+	sgxReport2 := parsedQuote.Body
+	assert.EqualValues(rawQuote[48:632], sgxReport2.Marshal())
 }
