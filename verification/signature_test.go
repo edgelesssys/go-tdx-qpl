@@ -38,17 +38,13 @@ func TestQuoteSignatureVerificationBasic(t *testing.T) {
 	toVerify := sha256.Sum256(append(headerBytes[:], reportBytes[:]...)) // Quote header + TDReport
 
 	// It's crypto time!
-	key := &ecdsa.PublicKey{}
+	key := new(ecdsa.PublicKey)
 	key.Curve = elliptic.P256()
 
 	// Either construct the key manually...
 	// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteVerification/QVL/Src/AttestationLibrary/src/OpensslHelpers/KeyUtils.cpp#L63
-	x := big.Int{}
-	y := big.Int{}
-	x.SetBytes(publicKey[:32])
-	y.SetBytes(publicKey[32:64])
-	key.X = &x
-	key.Y = &y
+	key.X = new(big.Int).SetBytes(publicKey[:32])
+	key.Y = new(big.Int).SetBytes(publicKey[32:64])
 
 	// Or use this one trick Go does not want you to know!
 	// elliptic.Unmarshal expects the input to be *65* bytes for our curve.
@@ -64,12 +60,10 @@ func TestQuoteSignatureVerificationBasic(t *testing.T) {
 	// The function seems to expect an ASN.1 SEQUENCE.
 	// No idea what that looks like... but Intel does this: https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteVerification/QVL/Src/AttestationLibrary/src/OpensslHelpers/SignatureVerification.cpp#L76
 	// So let's do the same here, too.
-	r := big.Int{}
-	s := big.Int{}
-	r.SetBytes(signature[:32])
-	s.SetBytes(signature[32:64])
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:64])
 
-	verified := ecdsa.Verify(key, toVerify[:], &r, &s)
+	verified := ecdsa.Verify(key, toVerify[:], r, s)
 	assert.True(verified)
 }
 
@@ -136,11 +130,9 @@ func TestQEReportSignatureVerification(t *testing.T) {
 	pckLeafECDSAPublicKey := pckLeaf.PublicKey.(*ecdsa.PublicKey)
 	signature := qeReport.Signature
 
-	r := big.Int{}
-	s := big.Int{}
-	r.SetBytes(signature[:32])
-	s.SetBytes(signature[32:64])
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:64])
 
-	verified := ecdsa.Verify(pckLeafECDSAPublicKey, marshaledEnclaveReportHash[:], &r, &s)
+	verified := ecdsa.Verify(pckLeafECDSAPublicKey, marshaledEnclaveReportHash[:], r, s)
 	assert.True(verified)
 }
