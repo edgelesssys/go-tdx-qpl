@@ -63,6 +63,8 @@ func FuzzParseQuote(f *testing.F) {
 func FuzzParseSignature(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
+		// Note: Might be susceptible to large memory allocations (> 4 GiB).
+		// Length is limited by caller (ParseQuote), not here since it's private.
 		assert.NotPanics(func() { _, _ = parseSignature(a) })
 	})
 }
@@ -70,6 +72,8 @@ func FuzzParseSignature(f *testing.F) {
 func FuzzParseQEReportCertificationData(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
+		// Note: Might be susceptible to large memory allocations (> 4 GiB).
+		// Length is limited by caller (ParseQuote), not here since it's private.
 		assert.NotPanics(func() { _, _ = parseQEReportCertificationData(a) })
 	})
 }
@@ -77,6 +81,8 @@ func FuzzParseQEReportCertificationData(f *testing.F) {
 func FuzzParseQEReportInnerCertificationData(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
+		// Note: Might be susceptible to large memory allocations (> 4 GiB).
+		// Length is limited by caller (ParseQuote), not here since it's private.
 		assert.NotPanics(func() { _, _ = parseQEReportInnerCertificationData(a) })
 	})
 }
