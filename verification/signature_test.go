@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"github.com/edgelesssys/go-tdx-qpl/verification/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"math/big"
@@ -27,7 +28,7 @@ func TestQuoteSignatureVerificationBasic(t *testing.T) {
 	rawQuote, err := os.ReadFile("../blobs/quote")
 	require.NoError(err)
 
-	parsedQuote, err := ParseQuote(rawQuote)
+	parsedQuote, err := types.ParseQuote(rawQuote)
 	require.NoError(err)
 
 	signature := parsedQuote.Signature.Signature
@@ -77,10 +78,10 @@ func TestQEReportAttestKeyReportDataConcat(t *testing.T) {
 	rawQuote, err := os.ReadFile("../blobs/quote")
 	require.NoError(err)
 
-	parsedQuote, err := ParseQuote(rawQuote)
+	parsedQuote, err := types.ParseQuote(rawQuote)
 	require.NoError(err)
 
-	qeReport, ok := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+	qeReport, ok := parsedQuote.Signature.CertificationData.Data.(types.QEReportCertificationData)
 	require.True(ok)
 
 	attestKeyData := parsedQuote.Signature.PublicKey
@@ -99,10 +100,10 @@ func TestQEReportSignatureVerification(t *testing.T) {
 	rawQuote, err := os.ReadFile("../blobs/quote")
 	require.NoError(err)
 
-	parsedQuote, err := ParseQuote(rawQuote)
+	parsedQuote, err := types.ParseQuote(rawQuote)
 	require.NoError(err)
 
-	qeReport, ok := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+	qeReport, ok := parsedQuote.Signature.CertificationData.Data.(types.QEReportCertificationData)
 	require.True(ok)
 	pemChain, ok := qeReport.CertificationData.Data.([]byte)
 	require.True(ok)

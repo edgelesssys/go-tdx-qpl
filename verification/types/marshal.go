@@ -1,4 +1,4 @@
-package verification
+package types
 
 import (
 	"encoding/binary"
