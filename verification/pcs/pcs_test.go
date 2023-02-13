@@ -62,9 +62,9 @@ func TestGetQEIdentity(t *testing.T) {
 
 type fakeAPI struct{}
 
-func (f *fakeAPI) getFromPCS(_ context.Context, uri *url.URL, _ string, _ bool) (json []byte, signingCert *x509.Certificate, err error) {
+func (f *fakeAPI) getFromPCS(_ context.Context, uri *url.URL, _ string) ([]byte, *x509.Certificate, error) {
 	signingCertPEM, _ := pem.Decode([]byte(testTCBSigningCert))
-	signingCert, err = x509.ParseCertificate(signingCertPEM.Bytes)
+	signingCert, err := x509.ParseCertificate(signingCertPEM.Bytes)
 	if err != nil {
 		return nil, nil, err
 	}

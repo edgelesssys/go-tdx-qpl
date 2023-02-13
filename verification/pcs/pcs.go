@@ -53,7 +53,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
 	"time"
 
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
@@ -96,7 +95,7 @@ const (
 )
 
 type pcsAPI interface {
-	getFromPCS(ctx context.Context, uri *url.URL, certHeader string, retry bool) (json []byte, signingCert *x509.Certificate, err error)
+	getFromPCS(ctx context.Context, uri *url.URL, certHeader string) (json []byte, signingCert *x509.Certificate, err error)
 }
 
 // TrustedServicesClient is a client for Intel's PCS.
@@ -124,7 +123,7 @@ func New() (*TrustedServicesClient, error) {
 func (t *TrustedServicesClient) GetPCKCRL(ctx context.Context) (*x509.RevocationList, *x509.Certificate, error) {
 	url := getPCSURL(sgxAPI, pckcrlPath)
 	url.RawQuery = pckcrlQuery
-	pckCRLRaw, pckCACert, err := t.api.getFromPCS(ctx, url, pckcrlHeader, true)
+	pckCRLRaw, pckCACert, err := t.api.getFromPCS(ctx, url, pckcrlHeader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting PCK CRL from PCS: %w", err)
 	}
@@ -148,7 +147,7 @@ func (t *TrustedServicesClient) GetTCBInfo(ctx context.Context, fmspc [6]byte) (
 	query.Set(tcbQuery, fmt.Sprintf("%x", fmspc))
 	url.RawQuery = query.Encode()
 
-	pcsResponseRaw, tcbSigningCert, err := t.api.getFromPCS(ctx, url, tcbHeader, true)
+	pcsResponseRaw, tcbSigningCert, err := t.api.getFromPCS(ctx, url, tcbHeader)
 	if err != nil {
 		return types.TCBInfo{}, fmt.Errorf("getting TCB Info from PCS: %w", err)
 	}
@@ -181,7 +180,7 @@ func (t *TrustedServicesClient) GetTCBInfo(ctx context.Context, fmspc [6]byte) (
 // GetQEIdentity retrieves the QE Identity from Intel's PCS.
 func (t *TrustedServicesClient) GetQEIdentity(ctx context.Context) (types.QEIdentity, error) {
 	url := getPCSURL(tdxAPI, qePath)
-	pcsResponseRaw, qeSigningCert, err := t.api.getFromPCS(ctx, url, qeHeader, true)
+	pcsResponseRaw, qeSigningCert, err := t.api.getFromPCS(ctx, url, qeHeader)
 	if err != nil {
 		return types.QEIdentity{}, fmt.Errorf("getting QE Identity from PCS: %w", err)
 	}
@@ -224,7 +223,7 @@ func (c *pcsAPIClient) getRootCACRL(ctx context.Context) (*x509.RevocationList, 
 		return nil, fmt.Errorf("parsing Root CA CRL URL: %w", err)
 	}
 
-	rootCACRLRaw, _, err := c.getFromPCS(ctx, url, "", true)
+	rootCACRLRaw, _, err := c.getFromPCS(ctx, url, "")
 	if err != nil {
 		return nil, fmt.Errorf("getting Root CA CRL from PCS: %w", err)
 	}
@@ -240,8 +239,7 @@ func (c *pcsAPIClient) getRootCACRL(ctx context.Context) (*x509.RevocationList, 
 // getFromPCS sends a request to Intel's PCS and returns the data,
 // and the sgining certificate chain in the responses header if it exists.
 // If retry is true, it will retry the request if the response is 429.
-func (c *pcsAPIClient) getFromPCS(
-	ctx context.Context, uri *url.URL, certHeader string, retry bool,
+func (c *pcsAPIClient) getFromPCS(ctx context.Context, uri *url.URL, certHeader string,
 ) (json []byte, signingCert *x509.Certificate, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), http.NoBody)
 	if err != nil {
@@ -255,20 +253,6 @@ func (c *pcsAPIClient) getFromPCS(
 	switch resp.StatusCode {
 	case http.StatusOK:
 		// continue
-	case http.StatusTooManyRequests:
-		// we have been rate limited
-		// check Retry-After header and wait if the timeout is less than 10 seconds
-		retryAfter := resp.Header.Get("Retry-After")
-		retryAfterSeconds, err := strconv.Atoi(retryAfter)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parsing Retry-After header: %w", err)
-		}
-		if retryAfterSeconds < 10 && retry {
-			time.Sleep(time.Second * time.Duration(retryAfterSeconds))
-			return c.getFromPCS(ctx, uri, certHeader, false)
-		} else {
-			return nil, nil, fmt.Errorf("request failed: too many requests: timeout for %d seconds", retryAfterSeconds)
-		}
 	default:
 		return nil, nil, fmt.Errorf("request failed with status %s: %s", resp.Status, http.StatusText(resp.StatusCode))
 	}
@@ -306,11 +290,10 @@ func (c *pcsAPIClient) verifyChain(ctx context.Context, chain []*x509.Certificat
 
 	// get the intermediate CA certificate from the chain
 	intermediateCACert := chain[0]
-	if chain[1].SerialNumber.Cmp(c.rootCA.SerialNumber) != 0 {
-		if chain[0].SerialNumber.Cmp(c.rootCA.SerialNumber) != 0 {
-			return nil, errors.New("chain does not contain expected root CA certificate")
-		}
+	if chain[0].Equal(c.rootCA) {
 		intermediateCACert = chain[1]
+	} else if !chain[1].Equal(c.rootCA) {
+		return nil, errors.New("certificate chain does not contain expected root CA certificate")
 	}
 
 	rootCRL, err := c.getRootCACRL(ctx)
