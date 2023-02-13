@@ -123,8 +123,10 @@ type SGXQuote4 struct {
 // ParseQuote parses an Intel TDX v4 Quote. The expected input is the complete quote.
 func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 	quoteLength := len(rawQuote)
-	if len(rawQuote) <= 636 {
+	if quoteLength <= 636 {
 		return SGXQuote4{}, fmt.Errorf("quote structure is too short to be parsed (received: %d bytes)", quoteLength)
+	} else if quoteLength > 1048576 {
+		return SGXQuote4{}, fmt.Errorf("quote is too large (over 1 MiB, received: %d bytes)", quoteLength)
 	}
 
 	quoteHeader := SGXQuote4Header{
@@ -350,6 +352,7 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	if qeReportAuthDataCertDataLength <= 6 {
 		return CertificationData{}, fmt.Errorf("QEReportCertificationData.CertificationData is too short to be parsed (received: %d bytes)", qeReportAuthDataCertDataLength)
 	}
+
 	qeAuthDataInnerCertData := CertificationData{
 		Type:           binary.LittleEndian.Uint16(qeReportAuthDataCertData[0:2]),
 		ParsedDataSize: binary.LittleEndian.Uint32(qeReportAuthDataCertData[2:6]),
