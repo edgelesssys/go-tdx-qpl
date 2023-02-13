@@ -1,9 +1,9 @@
 package types
 
 import (
+	"encoding/base64"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
 	"testing"
 )
 
@@ -11,7 +11,7 @@ func TestMarshalEnclaveReport(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := os.ReadFile("../blobs/quote")
+	rawQuote, err := base64.StdEncoding.DecodeString(rawQuoteBlob)
 	require.NoError(err)
 
 	parsedQuote, err := ParseQuote(rawQuote)
@@ -26,7 +26,7 @@ func TestMarshalQuotev4Header(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := os.ReadFile("../blobs/quote")
+	rawQuote, err := base64.StdEncoding.DecodeString(rawQuoteBlob)
 	require.NoError(err)
 
 	parsedQuote, err := ParseQuote(rawQuote)
@@ -40,7 +40,7 @@ func TestMarshalSGXReport4(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := os.ReadFile("../blobs/quote")
+	rawQuote, err := base64.StdEncoding.DecodeString(rawQuoteBlob)
 	require.NoError(err)
 
 	parsedQuote, err := ParseQuote(rawQuote)
