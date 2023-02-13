@@ -46,21 +46,18 @@ func (t *TCBInfo) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("decoding FMSPC: %w", err)
 	}
-	t.FMSPC = [6]byte{}
-	copy(t.FMSPC[:], fmspc)
+	t.FMSPC = [6]byte(fmspc)
 
 	pceid, err := decodeHexToByte(tcbInfoJSON.PCEID, 2)
 	if err != nil {
 		return fmt.Errorf("decoding PCEID: %w", err)
 	}
-	t.PCEID = [2]byte{}
-	copy(t.PCEID[:], pceid)
+	t.PCEID = [2]byte(pceid)
 
 	t.TCBType = tcbInfoJSON.TCBType
 	t.TCBEvaluationDataNumber = tcbInfoJSON.TCBEvaluationDataNumber
 	t.TDXModule = tcbInfoJSON.TDXModule
-	t.TCBLevels = make([]TCBLevel, len(tcbInfoJSON.TCBLevels))
-	copy(t.TCBLevels, tcbInfoJSON.TCBLevels)
+	t.TCBLevels = tcbInfoJSON.TCBLevels
 
 	return nil
 }
@@ -131,26 +128,22 @@ func (q *QEIdentity) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("decoding Attributes: %w", err)
 	}
-	q.Attributes = [16]byte{}
-	copy(q.Attributes[:], attributes)
+	q.Attributes = [16]byte(attributes)
 	attributesMask, err := decodeHexToByte(qeIdentity.AttributesMask, 16)
 	if err != nil {
 		return fmt.Errorf("decoding AttributesMask: %w", err)
 	}
-	q.AttributesMask = [16]byte{}
-	copy(q.AttributesMask[:], attributesMask)
+	q.AttributesMask = [16]byte(attributesMask)
 
 	mrSigner, err := decodeHexToByte(qeIdentity.MRSigner, 32)
 	if err != nil {
 		return fmt.Errorf("decoding MRSigner: %w", err)
 	}
-	q.MRSigner = [32]byte{}
-	copy(q.MRSigner[:], mrSigner)
+	q.MRSigner = [32]byte(mrSigner)
 
 	q.ISVProdID = qeIdentity.ISVProdID
 
-	q.TCBLevels = make([]TCBLevel, len(qeIdentity.TCBLevels))
-	copy(q.TCBLevels, qeIdentity.TCBLevels)
+	q.TCBLevels = qeIdentity.TCBLevels
 
 	return nil
 }
@@ -190,8 +183,7 @@ func (t *TDXModule) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("decoding MRSigner: %w", err)
 	}
-	t.MRSigner = [48]byte{}
-	copy(t.MRSigner[:], mrSigner)
+	t.MRSigner = [48]byte(mrSigner)
 
 	attributes, err := decodeHexToByte(tdxModule.Attributes, 8)
 	if err != nil {
@@ -237,8 +229,7 @@ func (t *TCBLevel) UnmarshalJSON(data []byte) error {
 	}
 	t.TCBDate = tcbDate
 	t.TCBStatus = tcbLevel.TCBStatus
-	t.AdvisoryIDs = make([]string, len(tcbLevel.AdvisoryIDs))
-	copy(t.AdvisoryIDs, tcbLevel.AdvisoryIDs)
+	t.AdvisoryIDs = tcbLevel.AdvisoryIDs
 
 	return nil
 }
@@ -260,7 +251,7 @@ type TCB struct {
 	ISVSVN           uint16         `json:"isvsvn"`
 }
 
-// TCBComponent describes SVN information for a SGX/TDX enclave.
+// TCBComponent describes SVN information for an SGX/TDX enclave.
 type TCBComponent struct {
 	SVN      uint8  `json:"svn"`
 	Category string `json:"category"`

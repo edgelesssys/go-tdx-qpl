@@ -186,7 +186,7 @@ func (t *TrustedServicesClient) GetQEIdentity(ctx context.Context) (types.QEIden
 		return types.QEIdentity{}, fmt.Errorf("getting QE Identity from PCS: %w", err)
 	}
 
-	// unmarshal to intermdeiate struct to verify signature
+	// unmarshal to intermediate struct to verify signature
 	var pcsResponse struct {
 		QEIdentity pcsJSONBody `json:"enclaveIdentity"`
 		Signature  string      `json:"signature"`
@@ -298,12 +298,13 @@ func (c *pcsAPIClient) getFromPCS(
 // This function expects the chain to be part of Intel's SGX/TDX certificate hierarchy.
 // We expect the chain to be of length 2, where one of the certificates is the root CA certificate.
 // We verify the root certificate in the chain matches the expected root CA certificate of the TrustedServicesClient,
-// and that the intermediate CA certificate of the chain is is signed by this CA and not revoked by the Root CA CRL.
+// and that the intermediate CA certificate of the chain is signed by this CA and not revoked by the Root CA CRL.
 func (c *pcsAPIClient) verifyChain(ctx context.Context, chain []*x509.Certificate) (*x509.Certificate, error) {
 	if len(chain) != 2 {
 		return nil, fmt.Errorf("unexpected number of certificates in chain: expected 2, got: %d", len(chain))
 	}
 
+	// get the intermediate CA certificate from the chain
 	intermediateCACert := chain[0]
 	if chain[1].SerialNumber.Cmp(c.rootCA.SerialNumber) != 0 {
 		if chain[0].SerialNumber.Cmp(c.rootCA.SerialNumber) != 0 {
@@ -387,7 +388,7 @@ func verifyPCSSignature(signingCert *x509.Certificate, data, signature []byte) e
 		return errors.New("signing cert public key is not an ECDSA key")
 	}
 	if len(signature) != 64 {
-		return fmt.Errorf("invalid ECDS signature: expected 64 bytes but got %d bytes", len(signature))
+		return fmt.Errorf("invalid ECDSA signature: expected 64 bytes but got %d bytes", len(signature))
 	}
 	r := new(big.Int).SetBytes(signature[:32])
 	s := new(big.Int).SetBytes(signature[32:64])
@@ -399,6 +400,8 @@ func verifyPCSSignature(signingCert *x509.Certificate, data, signature []byte) e
 	return nil
 }
 
+// pcsJSONBody is used to unmarshal the response body of a PCS JSON into a byte slice.
+// This is necessary because we need to verify the signature of the response body.
 type pcsJSONBody []byte
 
 func (b *pcsJSONBody) UnmarshalJSON(data []byte) error {
