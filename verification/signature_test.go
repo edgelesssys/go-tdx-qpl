@@ -80,7 +80,8 @@ func TestQEReportAttestKeyReportDataConcat(t *testing.T) {
 	parsedQuote, err := ParseQuote(rawQuote)
 	require.NoError(err)
 
-	qeReport := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+	qeReport, ok := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+	require.True(ok)
 
 	attestKeyData := parsedQuote.Signature.PublicKey
 	qeAuthData := qeReport.QEAuthData.Data
@@ -101,8 +102,10 @@ func TestQEReportSignatureVerification(t *testing.T) {
 	parsedQuote, err := ParseQuote(rawQuote)
 	require.NoError(err)
 
-	qeReport := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
-	pemChain := qeReport.CertificationData.Data.([]byte)
+	qeReport, ok := parsedQuote.Signature.CertificationData.Data.(QEReportCertificationData)
+	require.True(ok)
+	pemChain, ok := qeReport.CertificationData.Data.([]byte)
+	require.True(ok)
 
 	// Parse certificate chain
 	pckLeafPEM, rest := pem.Decode(pemChain)
