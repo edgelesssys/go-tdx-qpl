@@ -1,4 +1,4 @@
-package verification
+package types
 
 import (
 	"encoding/hex"
@@ -15,7 +15,7 @@ func TestParseQuote(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := os.ReadFile("../blobs/quote")
+	rawQuote, err := os.ReadFile("../../blobs/quote")
 	require.NoError(err)
 
 	parsedQuote, err := ParseQuote(rawQuote)
@@ -53,27 +53,27 @@ func TestParseQuote(t *testing.T) {
 func FuzzParseQuote(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		assert.NotPanics(func() { ParseQuote(a) })
+		assert.NotPanics(func() { _, _ = ParseQuote(a) })
 	})
 }
 
 func FuzzParseSignature(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		assert.NotPanics(func() { parseSignature(a) })
+		assert.NotPanics(func() { _, _ = parseSignature(a) })
 	})
 }
 
 func FuzzParseQEReportCertificationData(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		assert.NotPanics(func() { parseQEReportCertificationData(a) })
+		assert.NotPanics(func() { _, _ = parseQEReportCertificationData(a) })
 	})
 }
 
 func FuzzParseQEReportInnerCertificationData(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a []byte) {
 		assert := assert.New(t)
-		assert.NotPanics(func() { parseQEReportInnerCertificationData(a) })
+		assert.NotPanics(func() { _, _ = parseQEReportInnerCertificationData(a) })
 	})
 }

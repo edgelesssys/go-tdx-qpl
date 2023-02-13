@@ -1,4 +1,4 @@
-package verification
+package types
 
 import (
 	"encoding/binary"
@@ -241,7 +241,7 @@ type QEAuthData struct {
 	Data           []byte
 }
 
-// parseSignature parses a signature (ECDSA256QuoteV4AuthData) from a SGXQuote4.
+// parseSignature parses a signature (ECDSA256QuoteV4AuthData) from an SGXQuote4.
 func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	signatureLength := len(signature)
 	if signatureLength < 134 {
