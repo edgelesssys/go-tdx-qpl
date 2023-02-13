@@ -194,6 +194,7 @@ func (t *TrustedServicesClient) GetQEIdentity(ctx context.Context) (types.QEIden
 	if err := json.Unmarshal(pcsResponseRaw, &pcsResponse); err != nil {
 		return types.QEIdentity{}, fmt.Errorf("unmarshaling PCS response: %w", err)
 	}
+
 	signature, err := hex.DecodeString(pcsResponse.Signature)
 	if err != nil {
 		return types.QEIdentity{}, fmt.Errorf("decoding QE Identity signature: %w", err)
@@ -332,7 +333,13 @@ func (c *pcsAPIClient) verifyChain(ctx context.Context, chain []*x509.Certificat
 			return nil, fmt.Errorf("certificate %s has been revoked by the root CRL", intermediateCACert.SerialNumber)
 		}
 	}
-	if err := intermediateCACert.CheckSignatureFrom(c.rootCA); err != nil {
+
+	roots := x509.NewCertPool()
+	roots.AddCert(c.rootCA)
+	opts := x509.VerifyOptions{
+		Roots: roots,
+	}
+	if _, err := intermediateCACert.Verify(opts); err != nil {
 		return nil, fmt.Errorf("checking certificate signature: %w", err)
 	}
 
