@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/asn1"
 	"encoding/binary"
 	"fmt"
 )
@@ -74,17 +75,22 @@ import (
    https://github.com/intel/linux-sgx/blob/d5e10dfbd7381bcd47eb25d2dc1d2da4e9a91e70/common/inc/sgx_report2.h#L61
 */
 
-// TEETypeSGX is the type number referenced in the Quote header for SGX quotes.
-const TEETypeSGX = 0x0
+const (
+	// TEETypeSGX is the type number referenced in the Quote header for SGX quotes.
+	TEETypeSGX = 0x0
 
-// TEETypeTDX is the type number referenced in the Quote header for TDX quotes.
-const TEETypeTDX = 0x81
+	// TEETypeTDX is the type number referenced in the Quote header for TDX quotes.
+	TEETypeTDX = 0x81
 
-// PCK_ID_PCK_CERT_CHAIN is the CertificationData type holding the PCK cert chain (encoded in PEM, \0 byte terminated)
-const PCK_ID_PCK_CERT_CHAIN = 5
+	// PCK_ID_PCK_CERT_CHAIN is the CertificationData type holding the PCK cert chain (encoded in PEM, \0 byte terminated)
+	PCK_ID_PCK_CERT_CHAIN = 5
 
-// PCK_ID_QE_REPORT_CERTIFICATION_DATA is the CertificationData type holding QEReportCertificationData data.
-const PCK_ID_QE_REPORT_CERTIFICATION_DATA = 6
+	// PCK_ID_QE_REPORT_CERTIFICATION_DATA is the CertificationData type holding QEReportCertificationData data.
+	PCK_ID_QE_REPORT_CERTIFICATION_DATA = 6
+)
+
+// SGXCertExtensionOID is the OID for Intel's custom x509 SGX extension.
+var SGXCertExtensionOID = asn1.ObjectIdentifier{1, 2, 840, 113741, 1, 13, 1}
 
 // SGXQuote4Header is the header of an SGX/TDX quote compatible with v4 of the TrustedPlatform API.
 type SGXQuote4Header struct {
@@ -241,6 +247,23 @@ type EnclaveReport struct {
 type QEAuthData struct {
 	ParsedDataSize uint16
 	Data           []byte
+}
+
+// SGXExtensions holds the ASN.1 encoded SGX extensions of a TDX PCK cert.
+type SGXExtensions struct {
+	PPID               struct{}      `asn1:"tag:SEQUENCE,optional"`
+	TCB                struct{}      `asn1:"tag:SEQUENCE,optional"`
+	PCEID              struct{}      `asn1:"tag:SEQUENCE,optional"`
+	FMSPC              FMSPCSequence `asn1:"tag:SEQUENCE"`
+	SGXType            struct{}      `asn1:"tag:SEQUENCE,optional"`
+	PlatformInstanceID struct{}      `asn1:"tag:SEQUENCE,optional"`
+	Configuration      struct{}      `asn1:"tag:SEQUENCE,optional"`
+}
+
+// FMSPCSequence holds the ASN.1 encoded FMSPC of a TDX PCK cert.
+type FMSPCSequence struct {
+	FMSPCOid asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
+	FMSPC    []byte                `asn1:"tag:OCTET_STRING"`
 }
 
 // parseSignature parses a signature (ECDSA256QuoteV4AuthData) from an SGXQuote4.
