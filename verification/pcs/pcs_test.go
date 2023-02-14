@@ -32,7 +32,7 @@ func TestGetPCKCRL(t *testing.T) {
 		api: &fakeAPI{},
 	}
 
-	crl, intermediateCert, err := client.GetPCKCRL(context.Background())
+	crl, intermediateCert, err := client.GetPCKCRL(context.Background(), TDXPlatform)
 	assert.NoError(err)
 	assert.NotNil(crl)
 	assert.NotNil(intermediateCert)

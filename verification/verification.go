@@ -24,15 +24,25 @@ Attestation of a TDX attestation statement follows these steps:
 package verification
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/sha256"
 	"crypto/x509"
-	"encoding/asn1"
-	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 
+	"github.com/edgelesssys/go-tdx-qpl/verification/crypto"
 	"github.com/edgelesssys/go-tdx-qpl/verification/pcs"
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
+)
+
+const (
+	tcbInfoMinVersion = 3
+	identityVersion   = 2
+	identityTDXID     = "TD_QE"
 )
 
 // TDXVerifier is used to verify TDX quotes.
@@ -63,7 +73,7 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 	if err != nil {
 		return fmt.Errorf("parsing PCK certificate chain: %w", err)
 	}
-	pckCrl, pckIntermediateCert, err := v.pcsClient.GetPCKCRL(ctx)
+	pckCrl, pckIntermediateCert, err := v.pcsClient.GetPCKCRL(ctx, pcs.TDXPlatform) // TODO: Get platform type from quote
 	if err != nil {
 		return fmt.Errorf("getting PCK CRL: %w", err)
 	}
@@ -72,12 +82,12 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 		return fmt.Errorf("verifying PCK certificate: %w", err)
 	}
 
-	fmspc, err := getFMSPCExtension(pckCert)
+	ext, err := types.ParsePCKSGXExtensions(pckCert)
 	if err != nil {
-		return fmt.Errorf("getting FMSPC extension from PCK certificate: %w", err)
+		return fmt.Errorf("getting TEE extensions from PCK certificate: %w", err)
 	}
 
-	tcbInfo, err := v.pcsClient.GetTCBInfo(ctx, fmspc)
+	tcbInfo, err := v.pcsClient.GetTCBInfo(ctx, ext.FMSPC)
 	if err != nil {
 		return fmt.Errorf("getting TCB Info: %w", err)
 	}
@@ -95,7 +105,98 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 
 // VerifyQuote verifies the TDX quote using the PCK certificate, TCB Info, and QE Identity.
 func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certificate, tcbInfo types.TCBInfo, qeIdentity types.QEIdentity) error {
-	// TODO: implement
+	// 4.1.2.4.9
+	if tcbInfo.Version >= tcbInfoMinVersion {
+		if tcbInfo.ID != types.TCBInfoTDXID {
+			return fmt.Errorf("TCBInfo was generated for a different TEE: expected %s, got %s", types.TCBInfoTDXID, tcbInfo.ID)
+		}
+		if quote.Header.TEEType != types.TEETypeTDX {
+			return fmt.Errorf("given quote is not a TDX quote: expected TEE type %x, got %x", types.TEETypeTDX, quote.Header.TEEType)
+		}
+	} else {
+		return fmt.Errorf("TCBInfo version %d is not valid for TDX TEE", tcbInfo.Version)
+	}
+
+	// 4.1.2.4.10
+	// get pck cert extensions and verify using TCB Info
+	ext, err := types.ParsePCKSGXExtensions(pckCert)
+	if err != nil {
+		return fmt.Errorf("getting TEE extensions from PCK certificate: %w", err)
+	}
+
+	if !bytes.Equal(ext.FMSPC[:], tcbInfo.FMSPC[:]) {
+		return fmt.Errorf("FMSPC in PCK certificate (%x) does not match FMSPC in TCB Info (%x)", ext.FMSPC, tcbInfo.FMSPC)
+	}
+	if !bytes.Equal(ext.PCEID[:], tcbInfo.PCEID[:]) {
+		return fmt.Errorf("PCEID in PCK certificate (%x) does not match PCEID in TCB Info (%x)", ext.PCEID, tcbInfo.PCEID)
+	}
+
+	// TODO: Check what this function does in the Intel code (and implement it)
+	// verifyCertificationData()
+
+	// 4.1.2.4.11
+	// verify TDX module
+	if !bytes.Equal(quote.Body.MRSIGNERSEAM[:], tcbInfo.TDXModule.MRSigner[:]) {
+		return fmt.Errorf("MRSigner in TDX module (%x) does not match MRSigner in TCB Info (%x)", quote.Body.MRSIGNERSEAM, tcbInfo.TDXModule.MRSigner)
+	}
+	maskedAttributes := quote.Body.SEAMAttributes & tcbInfo.TDXModule.AttributesMask
+	if maskedAttributes != tcbInfo.TDXModule.Attributes {
+		return fmt.Errorf("masked SEAMAttributes in TDX module (%x) does not match SEAMAttributes in TCB Info (%x)", maskedAttributes, tcbInfo.TDXModule.Attributes)
+	}
+
+	// 4.1.2.4.12
+	// verify QE Report
+	qeReport, ok := quote.Signature.CertificationData.Data.(types.QEReportCertificationData)
+	if !ok {
+		return errors.New("invalid QEReportCertificationData in quote")
+	}
+	enclaveReport := qeReport.EnclaveReport.Marshal()
+	if err := crypto.VerifyECDSASignature(pckCert.PublicKey, enclaveReport[:], qeReport.Signature[:]); err != nil {
+		return fmt.Errorf("verifying QE report signature: %w", err)
+	}
+
+	// 4.1.2.4.13
+	concatSHA256 := sha256.Sum256(append(quote.Signature.PublicKey[:], qeReport.QEAuthData.Data...))
+	if !bytes.Equal(qeReport.EnclaveReport.ReportData[:32], concatSHA256[:]) {
+		return errors.New("QE report data does not match QE authentication data")
+	}
+
+	// 4.1.2.4.14
+	// verify QE Identity
+	if qeIdentity.Version != identityVersion {
+		return fmt.Errorf("QE Identity version %d is not valid for TDX TEE", qeIdentity.Version)
+	}
+	if qeIdentity.ID != identityTDXID {
+		return fmt.Errorf("QE Identity was generated for a different TEE: expected %s, got %s", identityTDXID, qeIdentity.ID)
+	}
+
+	// 4.1.2.4.15
+	// TODO: Check what this function does in Intel's code and implement it
+	// verifyQEIdentityStatus()
+
+	// 4.1.2.4.16
+	// verify quote signature
+	publicKey := quote.Signature.PublicKey // This key is called attestKey in Intel's code.
+	headerBytes := quote.Header.Marshal()
+	reportBytes := quote.Body.Marshal()
+	toVerify := append(headerBytes[:], reportBytes[:]...) // Quote header + TDReport
+
+	// It's crypto time!
+	key := new(ecdsa.PublicKey)
+	key.Curve = elliptic.P256()
+
+	// construct the key manually...
+	key.X = new(big.Int).SetBytes(publicKey[:32])
+	key.Y = new(big.Int).SetBytes(publicKey[32:64])
+
+	if err := crypto.VerifyECDSASignature(key, toVerify, quote.Signature.Signature[:]); err != nil {
+		return fmt.Errorf("verifying quote signature: %w", err)
+	}
+
+	//  4.1.2.4.17
+	// check TCB level
+	// TODO: implement this
+
 	return nil
 }
 
@@ -131,42 +232,13 @@ func parsePCKCertChain(quote types.SGXQuote4) (*x509.Certificate, error) {
 		return nil, errors.New("invalid PCK certification data type in quote")
 	}
 
-	var certChain []*x509.Certificate
-	for block, rest := pem.Decode([]byte(certChainPEM)); block != nil; block, rest = pem.Decode(rest) {
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("parsing certificate from PEM: %w", err)
-		}
-
-		certChain = append(certChain, cert)
+	certChain, err := crypto.ParsePEMCertificateChain(certChainPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parsing PCK certificate chain: %w", err)
 	}
 	if len(certChain) != 3 {
 		return nil, fmt.Errorf("PCK certificate chain must have 3 certificates, got %d", len(certChain))
 	}
 
 	return certChain[0], nil
-}
-
-func getFMSPCExtension(cert *x509.Certificate) ([6]byte, error) {
-	var sgxExtension []byte
-	for _, ext := range cert.Extensions {
-		if ext.Id.Equal(types.SGXCertExtensionOID) {
-			sgxExtension = ext.Value
-			break
-		}
-	}
-	if len(sgxExtension) == 0 {
-		return [6]byte{}, errors.New("no SGX extension found in certificate")
-	}
-
-	var extensions types.SGXExtensions
-	if _, err := asn1.Unmarshal(sgxExtension, &extensions); err != nil {
-		return [6]byte{}, fmt.Errorf("unmarshaling SGX extension: %w", err)
-	}
-
-	if len(extensions.FMSPC.FMSPC) != 6 {
-		return [6]byte{}, fmt.Errorf("invalid FMSPC length: %d", len(extensions.FMSPC.FMSPC))
-	}
-
-	return [6]byte(extensions.FMSPC.FMSPC), nil
 }

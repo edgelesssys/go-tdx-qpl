@@ -1,8 +1,10 @@
 package types
 
 import (
+	"crypto/x509"
 	"encoding/asn1"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -89,8 +91,8 @@ const (
 	PCK_ID_QE_REPORT_CERTIFICATION_DATA = 6
 )
 
-// SGXCertExtensionOID is the OID for Intel's custom x509 SGX extension.
-var SGXCertExtensionOID = asn1.ObjectIdentifier{1, 2, 840, 113741, 1, 13, 1}
+// sgxCertExtensionOID is the OID for Intel's custom x509 SGX extension.
+var sgxCertExtensionOID = asn1.ObjectIdentifier{1, 2, 840, 113741, 1, 13, 1}
 
 // SGXQuote4Header is the header of an SGX/TDX quote compatible with v4 of the TrustedPlatform API.
 type SGXQuote4Header struct {
@@ -249,23 +251,6 @@ type QEAuthData struct {
 	Data           []byte
 }
 
-// SGXExtensions holds the ASN.1 encoded SGX extensions of a TDX PCK cert.
-type SGXExtensions struct {
-	PPID               struct{}      `asn1:"tag:SEQUENCE,optional"`
-	TCB                struct{}      `asn1:"tag:SEQUENCE,optional"`
-	PCEID              struct{}      `asn1:"tag:SEQUENCE,optional"`
-	FMSPC              FMSPCSequence `asn1:"tag:SEQUENCE"`
-	SGXType            struct{}      `asn1:"tag:SEQUENCE,optional"`
-	PlatformInstanceID struct{}      `asn1:"tag:SEQUENCE,optional"`
-	Configuration      struct{}      `asn1:"tag:SEQUENCE,optional"`
-}
-
-// FMSPCSequence holds the ASN.1 encoded FMSPC of a TDX PCK cert.
-type FMSPCSequence struct {
-	FMSPCOid asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
-	FMSPC    []byte                `asn1:"tag:OCTET_STRING"`
-}
-
 // parseSignature parses a signature (ECDSA256QuoteV4AuthData) from an SGXQuote4.
 func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	signatureLength := len(signature)
@@ -404,4 +389,172 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	qeAuthDataInnerCertData.Data = data
 
 	return qeAuthDataInnerCertData, nil
+}
+
+type SGXExtensions struct {
+	PPID               [16]byte
+	TCB                PCKTCB
+	PCEID              [2]byte
+	FMSPC              [6]byte
+	SGXType            int // 0 standard, 1 Scalable
+	PlatformInstanceID [16]byte
+	Configuration      PCKConfiguration
+}
+
+type PCKTCB struct {
+	TCBSVN [16]int
+	PCESVN int
+	CPUSVN [16]byte
+}
+
+type PCKConfiguration struct {
+	DynamicPlatform bool
+	CachedKeys      bool
+	SMTEnabled      bool
+}
+
+// ParsePCKSGXExtensions parses the SGX extensions of a TDX PCK certificate.
+func ParsePCKSGXExtensions(pckCert *x509.Certificate) (SGXExtensions, error) {
+	var sgxExtension []byte
+	for _, ext := range pckCert.Extensions {
+		if ext.Id.Equal(sgxCertExtensionOID) {
+			sgxExtension = ext.Value
+			break
+		}
+	}
+	if len(sgxExtension) == 0 {
+		return SGXExtensions{}, errors.New("no SGX extension found in certificate")
+	}
+
+	var asn1Extensions asn1SGXExtensions
+	if _, err := asn1.Unmarshal(sgxExtension, &asn1Extensions); err != nil {
+		return SGXExtensions{}, fmt.Errorf("unmarshaling SGX extension: %w", err)
+	}
+
+	var ext SGXExtensions
+
+	if len(asn1Extensions.PPID.Value) != 16 {
+		return SGXExtensions{}, fmt.Errorf("invalid PPID length: %d", len(asn1Extensions.PPID.Value))
+	}
+	ext.PPID = [16]byte(asn1Extensions.PPID.Value)
+
+	if len(asn1Extensions.PCEID.Value) != 2 {
+		return SGXExtensions{}, fmt.Errorf("invalid PCEID length: %d", len(asn1Extensions.PCEID.Value))
+	}
+	ext.PCEID = [2]byte(asn1Extensions.PCEID.Value)
+
+	ext.SGXType = int(asn1Extensions.SGXType.Value)
+
+	if len(asn1Extensions.FMSPC.Value) != 6 {
+		return SGXExtensions{}, fmt.Errorf("invalid FMSPC length: %d", len(asn1Extensions.FMSPC.Value))
+	}
+	ext.FMSPC = [6]byte(asn1Extensions.FMSPC.Value)
+
+	// PlatformInstanceID is optional, but if present, must be 16 bytes.
+	platformIDLen := len(asn1Extensions.PlatformInstanceID.Value)
+	if platformIDLen > 0 {
+		if platformIDLen != 16 {
+			return SGXExtensions{}, fmt.Errorf("invalid PlatformInstanceID length: %d", platformIDLen)
+		}
+		ext.PlatformInstanceID = [16]byte(asn1Extensions.PlatformInstanceID.Value)
+	}
+
+	// Configuration is optional, but defaults to all false if not present.
+	ext.Configuration.CachedKeys = asn1Extensions.Configuration.Configuration.CachedKeys.Value
+	ext.Configuration.DynamicPlatform = asn1Extensions.Configuration.Configuration.DynamicPlatform.Value
+	ext.Configuration.SMTEnabled = asn1Extensions.Configuration.Configuration.SMTEnabled.Value
+
+	// TCBInfo is a sequence of TCB components.
+	if len(asn1Extensions.TCB.TCBInfo.CPUSVN.Value) != 16 {
+		return SGXExtensions{}, fmt.Errorf("invalid CPUSVN length: %d", len(asn1Extensions.TCB.TCBInfo.CPUSVN.Value))
+	}
+	ext.TCB.CPUSVN = [16]byte(asn1Extensions.TCB.TCBInfo.CPUSVN.Value)
+	ext.TCB.PCESVN = asn1Extensions.TCB.TCBInfo.PCESVN.Value
+
+	ext.TCB.TCBSVN[0] = asn1Extensions.TCB.TCBInfo.Comp01SVN.Value
+	ext.TCB.TCBSVN[1] = asn1Extensions.TCB.TCBInfo.Comp02SVN.Value
+	ext.TCB.TCBSVN[2] = asn1Extensions.TCB.TCBInfo.Comp03SVN.Value
+	ext.TCB.TCBSVN[3] = asn1Extensions.TCB.TCBInfo.Comp04SVN.Value
+	ext.TCB.TCBSVN[4] = asn1Extensions.TCB.TCBInfo.Comp05SVN.Value
+	ext.TCB.TCBSVN[5] = asn1Extensions.TCB.TCBInfo.Comp06SVN.Value
+	ext.TCB.TCBSVN[6] = asn1Extensions.TCB.TCBInfo.Comp07SVN.Value
+	ext.TCB.TCBSVN[7] = asn1Extensions.TCB.TCBInfo.Comp08SVN.Value
+	ext.TCB.TCBSVN[8] = asn1Extensions.TCB.TCBInfo.Comp09SVN.Value
+	ext.TCB.TCBSVN[9] = asn1Extensions.TCB.TCBInfo.Comp10SVN.Value
+	ext.TCB.TCBSVN[10] = asn1Extensions.TCB.TCBInfo.Comp11SVN.Value
+	ext.TCB.TCBSVN[11] = asn1Extensions.TCB.TCBInfo.Comp12SVN.Value
+	ext.TCB.TCBSVN[12] = asn1Extensions.TCB.TCBInfo.Comp13SVN.Value
+	ext.TCB.TCBSVN[13] = asn1Extensions.TCB.TCBInfo.Comp14SVN.Value
+	ext.TCB.TCBSVN[14] = asn1Extensions.TCB.TCBInfo.Comp15SVN.Value
+	ext.TCB.TCBSVN[15] = asn1Extensions.TCB.TCBInfo.Comp16SVN.Value
+
+	return ext, nil
+}
+
+// asn1SGXExtensions holds the ASN.1 encoded SGX extensions of a TDX PCK cert.
+type asn1SGXExtensions struct {
+	PPID               asn1OctetString   `asn1:"tag:SEQUENCE"`
+	TCB                asn1TCB           `asn1:"tag:SEQUENCE"`
+	PCEID              asn1OctetString   `asn1:"tag:SEQUENCE"`
+	FMSPC              asn1OctetString   `asn1:"tag:SEQUENCE"`
+	SGXType            asn1Enumerated    `asn1:"tag:SEQUENCE"`
+	PlatformInstanceID asn1OctetString   `asn1:"tag:SEQUENCE,optional"`
+	Configuration      asn1Configuration `asn1:"tag:SEQUENCE,optional"`
+}
+
+type asn1TCB struct {
+	TCBOid  asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
+	TCBInfo asn1TCBInfo           `asn1:"tag:SEQUENCE"`
+}
+
+type asn1TCBInfo struct {
+	Comp01SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp02SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp03SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp04SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp05SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp06SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp07SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp08SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp09SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp10SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp11SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp12SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp13SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp14SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp15SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	Comp16SVN asn1Integer     `asn1:"tag:SEQUENCE"`
+	PCESVN    asn1Integer     `asn1:"tag:SEQUENCE"`
+	CPUSVN    asn1OctetString `asn1:"tag:SEQUENCE"`
+}
+
+type asn1Configuration struct {
+	ConfigurationOid asn1.ObjectIdentifier    `asn1:"tag:OBJECT_IDENTIFIER"`
+	Configuration    asn1ConfigurationOptions `asn1:"tag:SEQUENCE"`
+}
+
+type asn1ConfigurationOptions struct {
+	DynamicPlatform asn1Boolean `asn1:"tag:SEQUENCE,optional"`
+	CachedKeys      asn1Boolean `asn1:"tag:SEQUENCE,optional"`
+	SMTEnabled      asn1Boolean `asn1:"tag:SEQUENCE,optional"`
+}
+
+type asn1OctetString struct {
+	Oid   asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
+	Value []byte                `asn1:"tag:OCTET_STRING"`
+}
+
+type asn1Integer struct {
+	Oid   asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
+	Value int                   `asn1:"tag:INTEGER"`
+}
+
+type asn1Boolean struct {
+	Oid   asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
+	Value bool                  `asn1:"tag:BOOLEAN"`
+}
+
+type asn1Enumerated struct {
+	Oid   asn1.ObjectIdentifier `asn1:"tag:OBJECT_IDENTIFIER"`
+	Value asn1.Enumerated       `asn1:"tag:0a"`
 }

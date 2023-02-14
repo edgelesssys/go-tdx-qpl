@@ -21,7 +21,7 @@ func pcsConnection() error {
 		return err
 	}
 
-	crl, intermediateCert, err := client.GetPCKCRL(context.Background())
+	crl, intermediateCert, err := client.GetPCKCRL(context.Background(), pcs.TDXPlatform)
 	if err != nil {
 		return err
 	}

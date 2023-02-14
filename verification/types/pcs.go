@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+const (
+	// TCBInfoTDXID indicates that the TCB Info is for a TDX enclave.
+	TCBInfoTDXID = "TDX"
+
+	// TCBInfoSGXID indicates that the TCB Info is for a SGX enclave.
+	TCBInfoSGXID = "SGX"
+)
+
 // TCBInfo contains expected Trusted Computing Base (TCB) information for a TDX enclave.
 type TCBInfo struct {
 	ID                      string     `json:"id"`
