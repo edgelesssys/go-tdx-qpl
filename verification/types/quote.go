@@ -403,7 +403,7 @@ type SGXExtensions struct {
 
 type PCKTCB struct {
 	TCBSVN [16]int
-	PCESVN int
+	PCESVN uint32
 	CPUSVN [16]byte
 }
 
@@ -469,7 +469,7 @@ func ParsePCKSGXExtensions(pckCert *x509.Certificate) (SGXExtensions, error) {
 		return SGXExtensions{}, fmt.Errorf("invalid CPUSVN length: %d", len(asn1Extensions.TCB.TCBInfo.CPUSVN.Value))
 	}
 	ext.TCB.CPUSVN = [16]byte(asn1Extensions.TCB.TCBInfo.CPUSVN.Value)
-	ext.TCB.PCESVN = asn1Extensions.TCB.TCBInfo.PCESVN.Value
+	ext.TCB.PCESVN = uint32(asn1Extensions.TCB.TCBInfo.PCESVN.Value)
 
 	ext.TCB.TCBSVN[0] = asn1Extensions.TCB.TCBInfo.Comp01SVN.Value
 	ext.TCB.TCBSVN[1] = asn1Extensions.TCB.TCBInfo.Comp02SVN.Value

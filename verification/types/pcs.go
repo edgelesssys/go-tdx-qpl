@@ -14,6 +14,9 @@ const (
 
 	// TCBInfoSGXID indicates that the TCB Info is for a SGX enclave.
 	TCBInfoSGXID = "SGX"
+
+	// CPUSVNByteLen is the length of a CPU Security Version Number (SVN) in bytes.
+	CPUSVNByteLen = 16
 )
 
 // TCBInfo contains expected Trusted Computing Base (TCB) information for a TDX enclave.
@@ -253,10 +256,10 @@ type tcbLevelJSON struct {
 
 // TCB describes the TCB status of a TDX enclave.
 type TCB struct {
-	SGXTCBComponents []TCBComponent `json:"sgxtcbcomponents"`
-	TDXTCBComponents []TCBComponent `json:"tdxtcbcomponents"`
-	PCESVN           uint16         `json:"pcesvn"`
-	ISVSVN           uint16         `json:"isvsvn"`
+	SGXTCBComponents [16]TCBComponent `json:"sgxtcbcomponents"`
+	TDXTCBComponents [16]TCBComponent `json:"tdxtcbcomponents"`
+	PCESVN           uint16           `json:"pcesvn"`
+	ISVSVN           uint16           `json:"isvsvn"`
 }
 
 // TCBComponent describes SVN information for an SGX/TDX enclave.
