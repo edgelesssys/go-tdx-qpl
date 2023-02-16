@@ -147,6 +147,7 @@ func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certifica
 
 	// At this point Intel checks that the actual size of the quote's certification data matches the size reported in ParsedDataSize
 	// Since we already do this when parsing the quote, we skip this step
+	// TODO: Perform this check
 
 	// 4.1.2.4.11
 	// verify TDX module
@@ -287,18 +288,10 @@ func (v *TDXVerifier) verifyQEIdentityStatus(enclaveIdentity types.QEIdentity, r
 		return status.SGX_ENCLAVE_REPORT_ISVPRODID_MISMATCH
 	}
 
-	// Length check for TCBLevels, this is not part of Intel's code,
-	// but we should make sure we don't panic if the report is malformed.
-	// Return SGX_ENCLAVE_REPORT_UNSUPPORTED_FORMAT if the report is malformed
-	fmt.Println("TCB Level length: ", len(enclaveIdentity.TCBLevels), "ISVSVN: ", report.ISVSVN)
-	if len(enclaveIdentity.TCBLevels) < int(report.ISVSVN) {
-		return status.SGX_ENCLAVE_REPORT_UNSUPPORTED_FORMAT
-	}
-	enclaveIdentityStatus := enclaveIdentity.TCBLevels[report.ISVSVN].TCBStatus
-
 	// 4.1.2.9.9 & 4.1.2.9.10
-	if enclaveIdentityStatus != "UpToDate" {
-		if enclaveIdentityStatus == "Revoked" {
+	enclaveIdentityStatus := enclaveIdentity.GetTCBStatus(report.ISVSVN)
+	if enclaveIdentityStatus != status.UpToDate {
+		if enclaveIdentityStatus == status.Revoked {
 			return status.SGX_ENCLAVE_REPORT_ISVSVN_REVOKED
 		}
 		return status.SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE
@@ -327,22 +320,22 @@ func (v *TDXVerifier) checkTCBLevel(tcbInfo types.TCBInfo, pckExtensions types.S
 	// Intel does some debug log printing here that we skip
 
 	// Check TCB status and return the appropriate status code
-	if tcbInfo.Version > 1 && tcbLevel.TCBStatus == "OutOfDateConfigurationNeeded" {
+	if tcbInfo.Version > 1 && tcbLevel.TCBStatus == status.OutOfDateConfigurationNeeded {
 		return status.TCB_OUT_OF_DATE_CONFIGURATION_NEEDED, nil
 	}
 
 	switch tcbLevel.TCBStatus {
-	case "OutOfDate":
+	case status.OutOfDate:
 		return status.TCB_OUT_OF_DATE, nil
-	case "Revoked":
+	case status.Revoked:
 		return status.TCB_REVOKED, nil
-	case "ConfigurationNeeded":
+	case status.ConfigurationNeeded:
 		return status.TCB_CONFIGURATION_NEEDED, nil
-	case "ConfigurationAndSWHardeningNeeded":
+	case status.ConfigurationAndSWHardeningNeeded:
 		return status.TCB_CONFIGURATION_AND_SW_HARDENING_NEEDED, nil
-	case "UpToDate":
+	case status.UpToDate:
 		return status.OK, nil
-	case "SWHardeningNeeded":
+	case status.SWHardeningNeeded:
 		return status.TCB_SW_HARDENING_NEEDED, nil
 	default:
 		return status.TCB_UNRECOGNIZED_STATUS, fmt.Errorf("unrecognized TCB status: %s", tcbLevel.TCBStatus)

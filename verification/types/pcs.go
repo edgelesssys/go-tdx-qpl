@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/edgelesssys/go-tdx-qpl/verification/status"
 )
 
 const (
@@ -159,6 +161,15 @@ func (q *QEIdentity) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (i *QEIdentity) GetTCBStatus(isvSvn uint16) status.TCBStatus {
+	for _, tcbLevel := range i.TCBLevels {
+		if tcbLevel.TCB.ISVSVN == isvSvn {
+			return tcbLevel.TCBStatus
+		}
+	}
+	return status.Revoked
+}
+
 // qeIdentityJSON contains the expected information of the TDX Quoting Enclave (QE).
 // This is the JSON representation of the TCB Info using basic strings and ints.
 type qeIdentityJSON struct {
@@ -220,10 +231,10 @@ type tdxModuleJSON struct {
 
 // TCBLevel contains expected TCB information for a TDX enclave.
 type TCBLevel struct {
-	TCB         TCB       `json:"tcb"`
-	TCBDate     time.Time `json:"tcbDate"`
-	TCBStatus   string    `json:"tcbStatus"`
-	AdvisoryIDs []string  `json:"advisoryIDs"`
+	TCB         TCB              `json:"tcb"`
+	TCBDate     time.Time        `json:"tcbDate"`
+	TCBStatus   status.TCBStatus `json:"tcbStatus"`
+	AdvisoryIDs []string         `json:"advisoryIDs"`
 }
 
 // UnmarshalJSON parses a JSON representation of the TCB Level into a TCBLevel.
@@ -239,7 +250,7 @@ func (t *TCBLevel) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("parsing TCB Date: %w", err)
 	}
 	t.TCBDate = tcbDate
-	t.TCBStatus = tcbLevel.TCBStatus
+	t.TCBStatus = status.TCBStatus(tcbLevel.TCBStatus)
 	t.AdvisoryIDs = tcbLevel.AdvisoryIDs
 
 	return nil

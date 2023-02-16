@@ -96,6 +96,18 @@ const (
 	TDX_MODULE_MISMATCH
 )
 
+type TCBStatus string
+
+const (
+	UpToDate                          TCBStatus = "UpToDate"
+	ConfigurationNeeded               TCBStatus = "ConfigurationNeeded"
+	OutOfDate                         TCBStatus = "OutOfDate"
+	OutOfDateConfigurationNeeded      TCBStatus = "OutOfDateConfigurationNeeded"
+	ConfigurationAndSWHardeningNeeded TCBStatus = "ConfigurationAndSWHardeningNeeded"
+	SWHardeningNeeded                 TCBStatus = "SWHardeningNeeded"
+	Revoked                           TCBStatus = "Revoked"
+)
+
 // ConvergeTCBStatus returns the converged TCB status of a TDX platform.
 func ConvergeTCBStatus(tcbLevelStatus, qeIdentityStatus Status) Status {
 	if qeIdentityStatus == SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE {
