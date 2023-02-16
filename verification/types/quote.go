@@ -391,6 +391,7 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	return qeAuthDataInnerCertData, nil
 }
 
+// SGXExtensions are the x509 certificate extensions of a TDX PCK certificate.
 type SGXExtensions struct {
 	PPID               [16]byte
 	TCB                PCKTCB
@@ -401,12 +402,16 @@ type SGXExtensions struct {
 	Configuration      PCKConfiguration
 }
 
+// PCKTCB describes the TCB of a TDX PCK certificate.
+// They are part of the SGX extensions.
 type PCKTCB struct {
 	TCBSVN [16]int
 	PCESVN uint32
 	CPUSVN [16]byte
 }
 
+// PCKConfiguration describes the configuration of a TDX PCK certificate.
+// They are part of the SGX extensions for multi user platforms.
 type PCKConfiguration struct {
 	DynamicPlatform bool
 	CachedKeys      bool

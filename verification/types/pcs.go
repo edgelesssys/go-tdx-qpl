@@ -17,8 +17,17 @@ const (
 	// TCBInfoSGXID indicates that the TCB Info is for a SGX enclave.
 	TCBInfoSGXID = "SGX"
 
+	// TCBInfoMinVersion is the minimal TCB version supporting TDX.
+	TCBInfoMinVersion = 3
+
 	// CPUSVNByteLen is the length of a CPU Security Version Number (SVN) in bytes.
 	CPUSVNByteLen = 16
+
+	// QEIdentityVersion is the pinned version of the QE Identity information returned by the PCE.
+	QEIdentityVersion = 2
+
+	// QEIdentityTDXID indicates that the QE Identity is for a TDX enclave.
+	QEIdentityTDXID = "TD_QE"
 )
 
 // TCBInfo contains expected Trusted Computing Base (TCB) information for a TDX enclave.

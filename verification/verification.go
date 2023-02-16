@@ -40,12 +40,6 @@ import (
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
 )
 
-const (
-	tcbInfoMinVersion = 3
-	identityVersion   = 2
-	identityTDXID     = "TD_QE"
-)
-
 // TDXVerifier is used to verify TDX quotes.
 type TDXVerifier struct {
 	pcsClient *pcs.TrustedServicesClient
@@ -108,7 +102,7 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 // TODO: Return VerificationError
 func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certificate, tcbInfo types.TCBInfo, qeIdentity types.QEIdentity) error {
 	// 4.1.2.4.9
-	if tcbInfo.Version >= tcbInfoMinVersion {
+	if tcbInfo.Version >= types.TCBInfoMinVersion {
 		if tcbInfo.ID != types.TCBInfoTDXID {
 			return &VerificationError{
 				fmt.Errorf("TCBInfo was generated for a different TEE: expected %s, got %s", types.TCBInfoTDXID, tcbInfo.ID),
@@ -185,15 +179,15 @@ func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certifica
 	// 4.1.2.4.14
 	// Verify QE Identity, this step is conditional in Intel's code depending on if qeIdentity is set or not
 	// Since we only care about TDX verification, we will always verify the QE Identity
-	if qeIdentity.Version != identityVersion {
+	if qeIdentity.Version != types.QEIdentityVersion {
 		return &VerificationError{
 			fmt.Errorf("QE Identity version %d is not valid for TDX TEE", qeIdentity.Version),
 			status.QE_IDENTITY_MISMATCH,
 		}
 	}
-	if qeIdentity.ID != identityTDXID {
+	if qeIdentity.ID != types.QEIdentityTDXID {
 		return &VerificationError{
-			fmt.Errorf("QE Identity was generated for a different TEE: expected %s, got %s", identityTDXID, qeIdentity.ID),
+			fmt.Errorf("QE Identity was generated for a different TEE: expected %s, got %s", types.QEIdentityTDXID, qeIdentity.ID),
 			status.QE_IDENTITY_MISMATCH,
 		}
 	}
@@ -308,7 +302,7 @@ func (v *TDXVerifier) checkTCBLevel(tcbInfo types.TCBInfo, pckExtensions types.S
 		return status.TCB_NOT_SUPPORTED, err
 	}
 
-	if tcbInfo.Version >= tcbInfoMinVersion &&
+	if tcbInfo.Version >= types.TCBInfoMinVersion &&
 		tcbInfo.ID == types.TCBInfoTDXID &&
 		tcbLevel.TCB.TDXTCBComponents[1].SVN != quote.Body.TCBSVN[1] {
 		return status.TCB_INFO_MISMATCH, fmt.Errorf(
@@ -348,7 +342,7 @@ func (v *TDXVerifier) getMatchingTCBLevel(tcbInfo types.TCBInfo, pckExtensions t
 		if isTCBHigherOrEqual(tcb.TCB.SGXTCBComponents, pckExtensions.TCB.TCBSVN) &&
 			pckExtensions.TCB.PCESVN >= uint32(tcb.TCB.PCESVN) {
 
-			if tcbInfo.Version >= tcbInfoMinVersion &&
+			if tcbInfo.Version >= types.TCBInfoMinVersion &&
 				tcbInfo.ID == types.TCBInfoTDXID &&
 				quote.Header.TEEType == types.TEETypeTDX {
 				if isTCBHigherOrEqual(tcb.TCB.TDXTCBComponents, pckExtensions.TCB.TCBSVN) {
