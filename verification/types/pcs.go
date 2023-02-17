@@ -28,6 +28,12 @@ const (
 
 	// QEIdentityTDXID indicates that the QE Identity is for a TDX enclave.
 	QEIdentityTDXID = "TD_QE"
+
+	// PlatformIssuer is the CA issuer for multi platform PCK certificates.
+	PlatformIssuer = "Intel SGX PCK Platform CA"
+
+	// ProcessorIssuer is the CA issuer for single platform PCK certificates.
+	ProcessorIssuer = "Intel SGX PCK Processor CA"
 )
 
 // TCBInfo contains expected Trusted Computing Base (TCB) information for a TDX enclave.

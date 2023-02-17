@@ -68,7 +68,13 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 	if err != nil {
 		return fmt.Errorf("parsing PCK certificate chain: %w", err)
 	}
-	pckCrl, pckIntermediateCert, err := v.pcsClient.GetPCKCRL(ctx, pcs.TDXPlatform) // TODO: Get platform type from quote
+
+	pckCA := pcs.TDXProcessor
+	if pckCert.Issuer.CommonName == types.PlatformIssuer {
+		pckCA = pcs.TDXPlatform
+	}
+
+	pckCrl, pckIntermediateCert, err := v.pcsClient.GetPCKCRL(ctx, pckCA)
 	if err != nil {
 		return fmt.Errorf("getting PCK CRL: %w", err)
 	}
@@ -139,9 +145,10 @@ func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certifica
 		}
 	}
 
-	// At this point Intel checks that the actual size of the quote's certification data matches the size reported in ParsedDataSize
-	// Since we already do this when parsing the quote, we skip this step
-	// TODO: Perform this check
+	// Check size of certification data
+	if certificationDataStatus := verifyCertificationData(quote.Signature.CertificationData); certificationDataStatus != status.OK {
+		return &VerificationError{errors.New("invalid certification data"), certificationDataStatus}
+	}
 
 	// 4.1.2.4.11
 	// verify TDX module
@@ -394,6 +401,14 @@ func parsePCKCertChain(quote types.SGXQuote4) (*x509.Certificate, error) {
 	}
 
 	return certChain[0], nil
+}
+
+func verifyCertificationData(data types.CertificationData) status.Status {
+	if data.ParsedDataSize != data.Size() {
+		return status.UNSUPPORTED_QUOTE_FORMAT
+	}
+
+	return status.OK
 }
 
 // isTCBHigherOrEqual checks if the SVN of a TCB Component is higher or equal to the given SVN's.

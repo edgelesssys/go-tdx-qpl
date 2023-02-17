@@ -38,7 +38,7 @@ import (
    │     SignatureLength     │     │     │ │                                       │ │    │     │             QEAuthData              │
    │        (4 bytes)        │     │     │ │               type == 6               │ │    │     │  ┌────────────────────────────────┐ │
    ├─────────────────────────┤     │     │ │  PCK_ID_QE_REPORT_CERTIFICATION_DATA  │ │    │     │  │        ParsedDataSize          │ │
-   │                         │     │     │ │                                       │ │    │     │  │           (4 bytes)            │ │
+   │                         │     │     │ │                                       │ │    │     │  │           (2 bytes)            │ │
    │                         │     │     │ ├───────────────────────────────────────┤ │    │     │  ├────────────────────────────────┤ │
    │                         │     │     │ │            ParsedDataSize             │ │    │     │  │             Data               │ │
    │                         │     │     │ │               (4 bytes)               │ │    │     │  │          (variable)            │ │
@@ -208,7 +208,7 @@ func ParseQuote(rawQuote []byte) (SGXQuote4, error) {
 type ECDSA256QuoteV4AuthData struct {
 	Signature         [64]byte
 	PublicKey         [64]byte
-	CertificationData CertificationData
+	CertificationData CertificationData // QEReportCertificationData
 }
 
 // CertificationData is a generic Data wrapper from Intel's library.
@@ -219,6 +219,36 @@ type CertificationData struct {
 	Type           uint16
 	ParsedDataSize uint32
 	Data           any
+
+	size int
+}
+
+// Size returns the real size of CertificationData's Data field in bytes.
+func (c CertificationData) Size() uint32 {
+	switch data := c.Data.(type) {
+	case QEReportCertificationData:
+		// total := EnclaveReport + Signature + QEAuthData + CertificationData
+		// len(EnclaveReport) := 384
+		// len(Signature) := 64
+		reportAndSigLen := 384 + 64
+		// QEAuthData := len(ParsedDataSize) + len(Data)
+		qeAuthLen := 2 + len(data.QEAuthData.Data)
+		// CertificationData := len(ParsedDataSize) + len(Type) + len(Data.([]byte))
+		certData, ok := data.CertificationData.Data.([]byte)
+		if !ok {
+			// should only happen when the Go struct was manually created
+			// instead of parsed from a real quote
+			return 0
+		}
+		certDataLen := len(certData) + 2 + 4
+
+		return uint32(reportAndSigLen + qeAuthLen + certDataLen)
+	case []byte:
+		return uint32(len(data))
+	default:
+		// unknown type, return 0
+		return 0
+	}
 }
 
 // QEReportCertificationData holds the Quoting Enclave (QE) report, embedded as CertificationData in ECDSA256QuoteV4AuthData.
@@ -226,7 +256,7 @@ type QEReportCertificationData struct {
 	EnclaveReport     EnclaveReport
 	Signature         [64]byte // ECDSA256 signature
 	QEAuthData        QEAuthData
-	CertificationData CertificationData
+	CertificationData CertificationData // PEM encoded PCKCertChain
 }
 
 // EnclaveReport is the report of a Quoting Enclave for SGX and TDX. For TDX, this appears to be static values.
@@ -278,6 +308,7 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	}
 
 	qeReportCertDataBytes := signature[134:endQEReportCertData]
+	quoteSignature.CertificationData.size = len(qeReportCertDataBytes)
 	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
 	// If you don't touch this code, it should either panic or be constant anyway.
 	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
@@ -377,6 +408,7 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	}
 
 	data := qeReportAuthDataCertData[6:endQEAuthDataInnerCertData]
+	qeAuthDataInnerCertData.size = len(data)
 	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
 	// If you don't touch this code, it should either panic or be constant anyway.
 	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
