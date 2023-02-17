@@ -1,19 +1,18 @@
 package types
 
 import (
-	"encoding/base64"
+	"testing"
+
+	"github.com/edgelesssys/go-tdx-qpl/blobs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestMarshalEnclaveReport(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := base64.StdEncoding.DecodeString(rawQuoteBlob)
-	require.NoError(err)
-
+	rawQuote := blobs.TDXQuote()
 	parsedQuote, err := ParseQuote(rawQuote)
 	require.NoError(err)
 
@@ -26,9 +25,7 @@ func TestMarshalQuotev4Header(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := base64.StdEncoding.DecodeString(rawQuoteBlob)
-	require.NoError(err)
-
+	rawQuote := blobs.TDXQuote()
 	parsedQuote, err := ParseQuote(rawQuote)
 	require.NoError(err)
 
@@ -40,8 +37,7 @@ func TestMarshalSGXReport4(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	rawQuote, err := base64.StdEncoding.DecodeString(rawQuoteBlob)
-	require.NoError(err)
+	rawQuote := blobs.TDXQuote()
 
 	parsedQuote, err := ParseQuote(rawQuote)
 	require.NoError(err)

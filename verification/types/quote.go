@@ -219,8 +219,6 @@ type CertificationData struct {
 	Type           uint16
 	ParsedDataSize uint32
 	Data           any
-
-	size int
 }
 
 // Size returns the real size of CertificationData's Data field in bytes.
@@ -277,7 +275,7 @@ type EnclaveReport struct {
 
 // QEAuthData holds the Quoting Enclave (QE) authentication data. For TDX, this appears to be static data.
 type QEAuthData struct {
-	ParsedDataSize uint16
+	ParsedDataSize uint16 // This value is not need in Go quote verification
 	Data           []byte
 }
 
@@ -308,7 +306,6 @@ func parseSignature(signature []byte) (ECDSA256QuoteV4AuthData, error) {
 	}
 
 	qeReportCertDataBytes := signature[134:endQEReportCertData]
-	quoteSignature.CertificationData.size = len(qeReportCertDataBytes)
 	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
 	// If you don't touch this code, it should either panic or be constant anyway.
 	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.
@@ -408,7 +405,6 @@ func parseQEReportInnerCertificationData(qeReportAuthDataCertData []byte) (Certi
 	}
 
 	data := qeReportAuthDataCertData[6:endQEAuthDataInnerCertData]
-	qeAuthDataInnerCertData.size = len(data)
 	// TODO: This should likely later be removed - we're basically just testing that we sliced correctly.
 	// If you don't touch this code, it should either panic or be constant anyway.
 	// Also, upgrade to uint64 so we can easier spot mistakes in case we overflow.

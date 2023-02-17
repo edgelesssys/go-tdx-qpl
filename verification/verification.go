@@ -105,7 +105,6 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 }
 
 // VerifyQuote verifies the TDX quote using the PCK certificate, TCB Info, and QE Identity.
-// TODO: Return VerificationError
 func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certificate, tcbInfo types.TCBInfo, qeIdentity types.QEIdentity) error {
 	// 4.1.2.4.9
 	if tcbInfo.Version >= types.TCBInfoMinVersion {
