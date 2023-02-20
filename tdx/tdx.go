@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"syscall"
 	"unsafe"
 
 	"github.com/edgelesssys/go-tdx-qpl/tdx/tdxproto"
@@ -80,7 +79,10 @@ func (h *Handle) GenerateQuote(userData []byte) ([]byte, error) {
 	if len(userData) > 64 {
 		return nil, fmt.Errorf("user data must not be longer than 64 bytes, received %d bytes", len(userData))
 	}
-	tdReport, err := h.createReport([64]byte(userData))
+
+	var reportData [64]byte
+	copy(reportData[:], userData)
+	tdReport, err := h.createReport(reportData)
 	if err != nil {
 		return nil, fmt.Errorf("creating report: %w", err)
 	}
@@ -122,7 +124,7 @@ func (h *Handle) GenerateQuote(userData []byte) ([]byte, error) {
 		length: unsafe.Sizeof(quoteRequestWrapper),
 	}
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, h.device.Fd(), requestQuote, uintptr(unsafe.Pointer(&outerWrapper))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, h.device.Fd(), requestQuote, uintptr(unsafe.Pointer(&outerWrapper))); errno != 0 {
 		return nil, fmt.Errorf("generating quote: %w", errno)
 	}
 
@@ -144,7 +146,7 @@ func (h *Handle) createReport(reportData [64]byte) ([]byte, error) {
 		tdReportLength:   1024,
 	}
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, h.device.Fd(), requestReport, uintptr(unsafe.Pointer(&reportRequest))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, h.device.Fd(), requestReport, uintptr(unsafe.Pointer(&reportRequest))); errno != 0 {
 		return nil, fmt.Errorf("creating TDX report: %w", errno)
 	}
 	return tdReport[:], nil
