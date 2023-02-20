@@ -56,9 +56,6 @@ import (
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
 )
 
-// TODO:
-// 		Add custom marshaling for types.TCBInfo and types.QEIdentity structs
-
 const (
 	// TDXPlatform is used to retrieve a TDX Platform CA certificate.
 	TDXPlatform = "platform"
