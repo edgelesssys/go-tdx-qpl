@@ -46,12 +46,8 @@ type TDXVerifier struct {
 }
 
 // New creates a new TDXVerifier.
-func New() (*TDXVerifier, error) {
-	pcsClient, err := pcs.New()
-	if err != nil {
-		return nil, err
-	}
-	return &TDXVerifier{pcsClient: pcsClient}, nil
+func New() *TDXVerifier {
+	return &TDXVerifier{pcsClient: pcs.New()}
 }
 
 // VerifyQuote verifies a TDX quote.

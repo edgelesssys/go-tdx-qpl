@@ -16,10 +16,7 @@ func main() {
 }
 
 func testVerify() error {
-	verifier, err := verification.New()
-	if err != nil {
-		return err
-	}
+	verifier := verification.New()
 
 	quote, err := os.ReadFile("./blobs/quote")
 	if err != nil {

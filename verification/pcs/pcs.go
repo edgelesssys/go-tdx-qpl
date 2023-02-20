@@ -43,7 +43,6 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -108,19 +107,13 @@ type TrustedServicesClient struct {
 }
 
 // New returns a new TrustedServicesClient.
-func New() (*TrustedServicesClient, error) {
-	block, _ := pem.Decode([]byte(rootCA))
-	rootCA, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parsing root CA: %w", err)
-	}
-
+func New() *TrustedServicesClient {
 	return &TrustedServicesClient{
 		api: &pcsAPIClient{
-			rootCA: rootCA,
+			rootCA: crypto.MustParsePEMCertificate([]byte(rootCA)),
 			client: http.DefaultClient,
 		},
-	}, nil
+	}
 }
 
 // GetPCKCRL retrieves the PCK CRL chain and PCK CA cert from Intel's PCS.
