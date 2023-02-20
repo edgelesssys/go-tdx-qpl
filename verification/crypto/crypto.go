@@ -45,3 +45,17 @@ func ParsePEMCertificateChain(certChainPEM []byte) ([]*x509.Certificate, error) 
 	}
 	return signingChain, nil
 }
+
+// MustParsePEMCertificate parses a single certificate from a PEM-encoded byte slice.
+// If multiple certificates are present, only the first one is returned.
+// It panics if the certificate is invalid or the PEM data contains no certificates.
+func MustParsePEMCertificate(certPEM []byte) *x509.Certificate {
+	certs, err := ParsePEMCertificateChain(certPEM)
+	if err != nil {
+		panic(err)
+	}
+	if len(certs) == 0 {
+		panic("expected at least one certificate")
+	}
+	return certs[0]
+}
