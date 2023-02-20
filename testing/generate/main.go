@@ -23,12 +23,12 @@ func testTDX() error {
 	defer handle.Close()
 
 	extendData := "This machine is not backdoored :)"
-	if err := handle.ExtendRTMR([]byte(extendData), 2); err != nil {
+	if err := tdx.ExtendRTMR(handle, []byte(extendData), 2); err != nil {
 		return err
 	}
 
 	reportData := []byte{'H', 'e', 'l', 'l', 'o', ' ', 'f', 'r', 'o', 'm', ' ', 'E', 'd', 'g', 'e', 'l', 'e', 's', 's', ' ', 'S', 'y', 's', 't', 'e', 'm', 's', '!'}
-	quote, err := handle.GenerateQuote(reportData)
+	quote, err := tdx.GenerateQuote(handle, reportData)
 	if err != nil {
 		return err
 	}

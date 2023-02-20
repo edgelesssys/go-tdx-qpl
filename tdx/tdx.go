@@ -5,6 +5,7 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"unsafe"
 
@@ -25,11 +26,8 @@ const tdxQuoteType = uint32(2)
 var (
 	requestReport = ioctl.IOWR('T', 0x01, 8)
 	requestQuote  = ioctl.IOR('T', 0x02, 8)
+	extendRTMR    = ioctl.IOWR('T', 0x03, 8)
 )
-
-// extendRTMR is a call to extend TDX RTMRs.
-// Intel frequently changes this value, so we pin it to IOWR and 0x03 and patch their patchset.
-var extendRTMR = ioctl.IOWR('T', 0x03, 8)
 
 // tdxReportUUID is a UUID to request TDX quotes.
 // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.h#L70
@@ -37,52 +35,62 @@ var tdxReportUUID = []*tdxproto.UUID{{
 	Value: []byte{0xe8, 0x6c, 0x04, 0x6e, 0x8c, 0xc4, 0x4d, 0x95, 0x81, 0x73, 0xfc, 0x43, 0xc1, 0xfa, 0x4f, 0x3f},
 }}
 
-// Handle is a handle to the TDX guest device.
-type Handle struct {
-	device *os.File
+// Device is a handle to the TDX guest device.
+type Device interface {
+	io.ReadWriteCloser
+	Fd() uintptr
+}
+
+// IsTDXDevice checks if the given device is a TDX guest device.
+func IsTDXDevice(device Device) bool {
+	f, ok := device.(*os.File)
+	if !ok {
+		return false
+	}
+	return f.Name() == guestDevice
 }
 
 // Open opens the TDX guest device and returns a handle to it.
-func Open() (*Handle, error) {
+func Open() (Device, error) {
 	device, err := os.Open(guestDevice)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Handle{
-		device: device,
-	}, nil
-}
-
-// Close closes the handle to the TDX guest device.
-func (h *Handle) Close() error {
-	return h.device.Close()
+	return device, nil
 }
 
 // ExtendRTMR extends the RTMR with the given data.
-func (h *Handle) ExtendRTMR(extendData []byte, index uint8) error {
+func ExtendRTMR(tdx Device, extendData []byte, index uint8) error {
 	extendDataHash := sha512.Sum384(extendData)
-	extendEvent := tdxExtendRTMREvent{
+	extendEvent := extendRTMREvent{
 		algoID:       5, // HASH_ALGO_SHA384 -> linux/include/uapi/linux/hash_info.h
 		digest:       &extendDataHash,
 		digestLength: 48,
 	}
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, h.device.Fd(), extendRTMR, uintptr(unsafe.Pointer(&extendEvent))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, tdx.Fd(), extendRTMR, uintptr(unsafe.Pointer(&extendEvent))); errno != 0 {
 		return fmt.Errorf("extending RTMR: %w", errno)
 	}
 	return nil
 }
 
+// ReadRTMR reads the RTMR at the given index.
+// TODO: implement
+func ReadRTMR(tdx Device, index uint8) ([48]byte, error) {
+	return [48]byte{}, nil
+}
+
 // GenerateQuote generates a TDX quote for the given user data.
-func (h *Handle) GenerateQuote(userData []byte) ([]byte, error) {
+// User Data may not be longer than 64 bytes.
+func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 	if len(userData) > 64 {
 		return nil, fmt.Errorf("user data must not be longer than 64 bytes, received %d bytes", len(userData))
 	}
 
 	var reportData [64]byte
 	copy(reportData[:], userData)
-	tdReport, err := h.createReport(reportData)
+	tdReport, err := createReport(tdx, reportData)
 	if err != nil {
 		return nil, fmt.Errorf("creating report: %w", err)
 	}
@@ -109,7 +117,7 @@ func (h *Handle) GenerateQuote(userData []byte) ([]byte, error) {
 
 	var protobufData [4*4*1024 - 28]byte
 	copy(protobufData[:], serializedQuoteRequest)
-	quoteRequestWrapper := tdxRequestQuoteWrapper{
+	quoteRequestWrapper := requestQuoteWrapper{
 		version:     1,
 		status:      0,
 		inputLength: 4 + uint32(len(serializedQuoteRequest)),
@@ -119,12 +127,12 @@ func (h *Handle) GenerateQuote(userData []byte) ([]byte, error) {
 		protobufData:   protobufData,
 	}
 
-	outerWrapper := tdxRequestQuoteOuterWrapper{
+	outerWrapper := requestQuoteOuterWrapper{
 		blob:   uintptr(unsafe.Pointer(&quoteRequestWrapper)),
 		length: unsafe.Sizeof(quoteRequestWrapper),
 	}
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, h.device.Fd(), requestQuote, uintptr(unsafe.Pointer(&outerWrapper))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, tdx.Fd(), requestQuote, uintptr(unsafe.Pointer(&outerWrapper))); errno != 0 {
 		return nil, fmt.Errorf("generating quote: %w", errno)
 	}
 
@@ -136,9 +144,9 @@ func (h *Handle) GenerateQuote(userData []byte) ([]byte, error) {
 	return quoteResponse.GetGetQuoteResponse().Quote, nil
 }
 
-func (h *Handle) createReport(reportData [64]byte) ([]byte, error) {
+func createReport(tdx Device, reportData [64]byte) ([]byte, error) {
 	var tdReport [1024]byte
-	reportRequest := tdxReportRequest{
+	reportRequest := reportRequest{
 		subtype:          0,
 		reportData:       &reportData,
 		reportDataLength: 64,
@@ -146,20 +154,23 @@ func (h *Handle) createReport(reportData [64]byte) ([]byte, error) {
 		tdReportLength:   1024,
 	}
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, h.device.Fd(), requestReport, uintptr(unsafe.Pointer(&reportRequest))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, tdx.Fd(), requestReport, uintptr(unsafe.Pointer(&reportRequest))); errno != 0 {
 		return nil, fmt.Errorf("creating TDX report: %w", errno)
 	}
 	return tdReport[:], nil
 }
 
-// Based on the kernel patch we got to implement RTMRs for kernel 5.19
-type tdxExtendRTMREvent struct {
+// extendRTMREvent is the structure used to extend RTMRs in TDX.
+// Based on the kernel patch we got to implement RTMRs for kernel 5.19.
+type extendRTMREvent struct {
 	algoID       uint8
 	digest       *[48]byte
 	digestLength uint32
 }
 
 /*
+reportRequest is the structure used to create TDX reports.
+
 Taken from pytdxmeasure:
 
 	#
@@ -173,10 +184,8 @@ Taken from pytdxmeasure:
 	#        __u32 tdr_len;
 	# };
 	#
-
-This is also likely somewhere in the kernel patches Intel shipped for us for the TDX Linux 5.19 development kernel.
 */
-type tdxReportRequest struct {
+type reportRequest struct {
 	subtype          uint8
 	reportData       *[64]byte
 	reportDataLength uint32
@@ -185,7 +194,7 @@ type tdxReportRequest struct {
 }
 
 // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L70-L80
-type tdxRequestQuoteWrapper struct {
+type requestQuoteWrapper struct {
 	version        uint64
 	status         uint64
 	inputLength    uint32
@@ -195,7 +204,7 @@ type tdxRequestQuoteWrapper struct {
 }
 
 // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L82-L86
-type tdxRequestQuoteOuterWrapper struct {
+type requestQuoteOuterWrapper struct {
 	blob   uintptr
 	length uintptr // size_t / uint64_t
 }
