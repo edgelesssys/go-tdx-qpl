@@ -14,7 +14,7 @@ func TestUnmarshalTCBInfo(t *testing.T) {
 	var tcbInfo struct {
 		TCBInfo TCBInfo `json:"tcbInfo"`
 	}
-	err := json.Unmarshal([]byte(blobs.TCBInfoJSON), &tcbInfo)
+	err := json.Unmarshal(blobs.TCBInfoJSON, &tcbInfo)
 	assert.NoError(err)
 }
 
@@ -24,6 +24,6 @@ func TestUnmarshalQEIdentity(t *testing.T) {
 	var qeIdentity struct {
 		QEIdentity QEIdentity `json:"enclaveIdentity"`
 	}
-	err := json.Unmarshal([]byte(blobs.QEIdentityJSON), &qeIdentity)
+	err := json.Unmarshal(blobs.QEIdentityJSON, &qeIdentity)
 	assert.NoError(err)
 }

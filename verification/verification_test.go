@@ -195,7 +195,7 @@ func FuzzVerifyQuote_QEReportAuthData(f *testing.F) {
 		report, ok := quote.Signature.CertificationData.Data.(types.QEReportCertificationData)
 		require.True(t, ok)
 
-		// Out Go code does not require ParsedDataSize for quote verification,
+		// Our Go code does not require ParsedDataSize for quote verification,
 		// but we want to avoid failing tests due to this field being different
 		// from the expected quote, so we set it manually.
 		target.ParsedDataSize = uint16(len(target.Data))
@@ -244,12 +244,11 @@ func runVerifyTest(
 		require.ErrorAs(err, &verifiyErr)
 		return
 	}
-	// TODO: Save quotes that pass verification
 
-	expectedQuote, err := types.ParseQuote(blobs.TDXQuote())
+	originalQuote, err := types.ParseQuote(blobs.TDXQuote())
 	require.NoError(err)
 
-	require.True(reflect.DeepEqual(quote, expectedQuote), "TDXVerifier verification sucessfull on a modified quote")
+	require.True(reflect.DeepEqual(quote, originalQuote), "TDXVerifier verification successful on a modified quote")
 }
 
 func setupQuote(require *require.Assertions) (types.SGXQuote4, *x509.Certificate, types.TCBInfo, types.QEIdentity) {

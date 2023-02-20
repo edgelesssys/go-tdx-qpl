@@ -70,9 +70,9 @@ func (f *fakeAPI) getFromPCS(_ context.Context, uri *url.URL, _ string) ([]byte,
 	case strings.Contains(uri.Path, pckcrlPath):
 		return blobs.PCKCRLDER(), pckSigningCert, nil
 	case strings.Contains(uri.Path, tcbPath):
-		return []byte(blobs.TCBInfoJSON), signingCert, nil
+		return blobs.TCBInfoJSON, signingCert, nil
 	case strings.Contains(uri.Path, qePath):
-		return []byte(blobs.QEIdentityJSON), signingCert, nil
+		return blobs.QEIdentityJSON, signingCert, nil
 	default:
 		return nil, nil, fmt.Errorf("unexpected path: %s", uri.Path)
 	}
