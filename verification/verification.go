@@ -54,15 +54,15 @@ func New() *TDXVerifier {
 //
 // This is the high level API function that handles retrieval of TDX collateral from Intel's PCS.
 // Use [*TDXVerifier.VerifyQuote] and [*TDXVerifier.VerifyPCKCert] if you want to handle collateral retrieval and verification yourself.
-func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
+func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) (types.SGXQuote4, error) {
 	quote, err := types.ParseQuote(rawQuote)
 	if err != nil {
-		return fmt.Errorf("parsing TDX quote: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("parsing TDX quote: %w", err)
 	}
 
 	pckCert, err := parsePCKCertChain(quote)
 	if err != nil {
-		return fmt.Errorf("parsing PCK certificate chain: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("parsing PCK certificate chain: %w", err)
 	}
 
 	pckCA := pcs.TDXProcessor
@@ -72,32 +72,32 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) error {
 
 	pckCrl, pckIntermediateCert, err := v.pcsClient.GetPCKCRL(ctx, pckCA)
 	if err != nil {
-		return fmt.Errorf("getting PCK CRL: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("getting PCK CRL: %w", err)
 	}
 
 	if err := v.VerifyPCKCert(pckCert, pckIntermediateCert, pckCrl); err != nil {
-		return fmt.Errorf("verifying PCK certificate: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("verifying PCK certificate: %w", err)
 	}
 
 	ext, err := types.ParsePCKSGXExtensions(pckCert)
 	if err != nil {
-		return fmt.Errorf("getting TEE extensions from PCK certificate: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("getting TEE extensions from PCK certificate: %w", err)
 	}
 
 	tcbInfo, err := v.pcsClient.GetTCBInfo(ctx, ext.FMSPC)
 	if err != nil {
-		return fmt.Errorf("getting TCB Info: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("getting TCB Info: %w", err)
 	}
 
 	qeIdentity, err := v.pcsClient.GetQEIdentity(ctx)
 	if err != nil {
-		return fmt.Errorf("getting QE Identity: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("getting QE Identity: %w", err)
 	}
 
 	if err := v.VerifyQuote(quote, pckCert, tcbInfo, qeIdentity); err != nil {
-		return fmt.Errorf("verifying TDX quote: %w", err)
+		return types.SGXQuote4{}, fmt.Errorf("verifying TDX quote: %w", err)
 	}
-	return nil
+	return quote, nil
 }
 
 // VerifyQuote verifies the TDX quote using the PCK certificate, TCB Info, and QE Identity.

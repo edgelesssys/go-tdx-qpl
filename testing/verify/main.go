@@ -23,5 +23,6 @@ func testVerify() error {
 		return err
 	}
 
-	return verifier.Verify(context.Background(), quote)
+	_, err = verifier.Verify(context.Background(), quote)
+	return err
 }
