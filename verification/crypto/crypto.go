@@ -4,6 +4,7 @@ package crypto
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
@@ -11,6 +12,18 @@ import (
 	"fmt"
 	"math/big"
 )
+
+// BuildECDSAPublicKey builds an ECDSA public key from a byte slice.
+func BuildECDSAPublicKey(rawPublicKey [64]byte) *ecdsa.PublicKey {
+	key := new(ecdsa.PublicKey)
+	key.Curve = elliptic.P256()
+
+	// construct the key manually...
+	key.X = new(big.Int).SetBytes(rawPublicKey[:32])
+	key.Y = new(big.Int).SetBytes(rawPublicKey[32:64])
+
+	return key
+}
 
 // VerifyECDSASignature verifies an ECDSA signature was signed
 // using the public key of the provided signing certificate.

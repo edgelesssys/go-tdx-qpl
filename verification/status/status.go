@@ -135,6 +135,7 @@ func ConvergeTCBStatus(tcbLevelStatus, qeIdentityStatus Status) Status {
 		OK:
 		return tcbLevelStatus
 	default:
+		// 4.1.2.4.16.4
 		return TCB_UNRECOGNIZED_STATUS
 	}
 }

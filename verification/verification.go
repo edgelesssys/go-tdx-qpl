@@ -26,13 +26,10 @@ package verification
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/edgelesssys/go-tdx-qpl/verification/crypto"
 	"github.com/edgelesssys/go-tdx-qpl/verification/pcs"
@@ -217,14 +214,7 @@ func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certifica
 	reportBytes := quote.Body.Marshal()
 	toVerify := append(headerBytes[:], reportBytes[:]...) // Quote header + TDReport
 
-	// It's crypto time!
-	key := new(ecdsa.PublicKey)
-	key.Curve = elliptic.P256()
-
-	// construct the key manually...
-	key.X = new(big.Int).SetBytes(publicKey[:32])
-	key.Y = new(big.Int).SetBytes(publicKey[32:64])
-
+	key := crypto.BuildECDSAPublicKey(publicKey)
 	if err := crypto.VerifyECDSASignature(key, toVerify, quote.Signature.Signature[:]); err != nil {
 		return &VerificationError{fmt.Errorf("verifying quote signature: %w", err), status.INVALID_QUOTE_SIGNATURE}
 	}
@@ -293,6 +283,7 @@ func (v *TDXVerifier) verifyQEIdentityStatus(enclaveIdentity types.QEIdentity, r
 		return status.SGX_ENCLAVE_REPORT_ISVSVN_OUT_OF_DATE
 	}
 
+	// 4.1.2.9.11
 	return status.OK
 }
 
