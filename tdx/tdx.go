@@ -75,10 +75,26 @@ func ExtendRTMR(tdx Device, extendData []byte, index uint8) error {
 	return nil
 }
 
-// ReadRTMR reads the RTMR at the given index.
-// TODO: implement
-func ReadRTMR(tdx Device, index uint8) ([48]byte, error) {
-	return [48]byte{}, nil
+// ReadRTMRs reads the RTMRs of a TDX guest.
+func ReadRTMRs(tdx Device) ([4][48]byte, error) {
+	// TDX does not support directly reading RTMRs
+	// Instead, create a new report with zeroed user data,
+	// and read the RTMR from the report
+	report, err := createReport(tdx, [64]byte{0x00})
+	if err != nil {
+		return [4][48]byte{}, fmt.Errorf("creating report: %w", err)
+	}
+
+	// SGXReport2 is a total of 584 bytes long
+	if len(report) != 584 {
+		return [4][48]byte{}, fmt.Errorf("invalid report length: %d", len(report))
+	}
+
+	// The RTMRs are located at offset 328 in the report
+	// There are 4 RTMRs, each 48 bytes long
+	rtmr := [4][48]byte{[48]byte(report[328:376]), [48]byte(report[376:424]), [48]byte(report[424:472]), [48]byte(report[472:520])}
+
+	return rtmr, nil
 }
 
 // GenerateQuote generates a TDX quote for the given user data.
