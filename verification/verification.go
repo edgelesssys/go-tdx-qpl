@@ -144,16 +144,16 @@ func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certifica
 
 	// 4.1.2.4.11
 	// verify TDX module
-	if !bytes.Equal(quote.Body.MRSIGNERSEAM[:], tcbInfo.TDXModule.MRSigner[:]) {
+	if !bytes.Equal(quote.Body.MRSIGNERSEAM[:], tcbInfo.TDXModule.MRSIGNERSEAM[:]) {
 		return &VerificationError{
-			fmt.Errorf("MRSigner in TDX module (%x) does not match MRSigner in TCB Info (%x)", quote.Body.MRSIGNERSEAM, tcbInfo.TDXModule.MRSigner),
+			fmt.Errorf("MRSIGNER in TDX module (%x) does not match MRSIGNER in TCB Info (%x)", quote.Body.MRSIGNERSEAM, tcbInfo.TDXModule.MRSIGNERSEAM),
 			status.TDX_MODULE_MISMATCH,
 		}
 	}
-	maskedAttributes := quote.Body.SEAMAttributes & tcbInfo.TDXModule.AttributesMask
-	if maskedAttributes != tcbInfo.TDXModule.Attributes {
+	maskedAttributes := quote.Body.SEAMAttributes & tcbInfo.TDXModule.SEAMAttributesMask
+	if maskedAttributes != tcbInfo.TDXModule.SEAMAttributes {
 		return &VerificationError{
-			fmt.Errorf("masked SEAMAttributes in TDX module (%x) does not match SEAMAttributes in TCB Info (%x)", maskedAttributes, tcbInfo.TDXModule.Attributes),
+			fmt.Errorf("masked SEAMAttributes in TDX module (%x) does not match SEAMAttributes in TCB Info (%x)", maskedAttributes, tcbInfo.TDXModule.SEAMAttributes),
 			status.TDX_MODULE_MISMATCH,
 		}
 	}
@@ -265,7 +265,7 @@ func (v *TDXVerifier) verifyQEIdentityStatus(enclaveIdentity types.QEIdentity, r
 	}
 
 	// 4.1.2.9.7
-	if !bytes.Equal(report.MRSIGNER[:], enclaveIdentity.MRSigner[:]) {
+	if !bytes.Equal(report.MRSIGNER[:], enclaveIdentity.MRSIGNER[:]) {
 		return status.SGX_ENCLAVE_REPORT_MRSIGNER_MISMATCH
 	}
 
@@ -333,7 +333,7 @@ func (v *TDXVerifier) checkTCBLevel(tcbInfo types.TCBInfo, pckExtensions types.S
 func (v *TDXVerifier) getMatchingTCBLevel(tcbInfo types.TCBInfo, pckExtensions types.SGXExtensions, quote types.SGXQuote4) (types.TCBLevel, error) {
 	for _, tcb := range tcbInfo.TCBLevels {
 		if isTCBHigherOrEqual(tcb.TCB.SGXTCBComponents, pckExtensions.TCB.TCBSVN) &&
-			pckExtensions.TCB.PCESVN >= uint32(tcb.TCB.PCESVN) {
+			pckExtensions.TCB.PCESVN >= tcb.TCB.PCESVN {
 
 			if tcbInfo.Version >= types.TCBInfoMinVersion &&
 				tcbInfo.ID == types.TCBInfoTDXID &&
@@ -398,9 +398,9 @@ func verifyCertificationData(data types.CertificationData) status.Status {
 }
 
 // isTCBHigherOrEqual checks if the SVN of a TCB Component is higher or equal to the given SVN's.
-func isTCBHigherOrEqual(tcb [16]types.TCBComponent, tcbSVN [16]int) bool {
+func isTCBHigherOrEqual(tcb [16]types.TCBComponent, tcbSVN [16]uint8) bool {
 	for idx, svn := range tcbSVN {
-		if uint8(svn) < tcb[idx].SVN {
+		if svn < tcb[idx].SVN {
 			return false
 		}
 	}

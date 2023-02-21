@@ -433,8 +433,8 @@ type SGXExtensions struct {
 // PCKTCB describes the TCB of a TDX PCK certificate.
 // They are part of the SGX extensions.
 type PCKTCB struct {
-	TCBSVN [16]int
-	PCESVN uint32
+	TCBSVN [16]uint8
+	PCESVN uint16
 	CPUSVN [16]byte
 }
 
@@ -502,24 +502,24 @@ func ParsePCKSGXExtensions(pckCert *x509.Certificate) (SGXExtensions, error) {
 		return SGXExtensions{}, fmt.Errorf("invalid CPUSVN length: %d", len(asn1Extensions.TCB.TCBInfo.CPUSVN.Value))
 	}
 	ext.TCB.CPUSVN = [16]byte(asn1Extensions.TCB.TCBInfo.CPUSVN.Value)
-	ext.TCB.PCESVN = uint32(asn1Extensions.TCB.TCBInfo.PCESVN.Value)
+	ext.TCB.PCESVN = uint16(asn1Extensions.TCB.TCBInfo.PCESVN.Value)
 
-	ext.TCB.TCBSVN[0] = asn1Extensions.TCB.TCBInfo.Comp01SVN.Value
-	ext.TCB.TCBSVN[1] = asn1Extensions.TCB.TCBInfo.Comp02SVN.Value
-	ext.TCB.TCBSVN[2] = asn1Extensions.TCB.TCBInfo.Comp03SVN.Value
-	ext.TCB.TCBSVN[3] = asn1Extensions.TCB.TCBInfo.Comp04SVN.Value
-	ext.TCB.TCBSVN[4] = asn1Extensions.TCB.TCBInfo.Comp05SVN.Value
-	ext.TCB.TCBSVN[5] = asn1Extensions.TCB.TCBInfo.Comp06SVN.Value
-	ext.TCB.TCBSVN[6] = asn1Extensions.TCB.TCBInfo.Comp07SVN.Value
-	ext.TCB.TCBSVN[7] = asn1Extensions.TCB.TCBInfo.Comp08SVN.Value
-	ext.TCB.TCBSVN[8] = asn1Extensions.TCB.TCBInfo.Comp09SVN.Value
-	ext.TCB.TCBSVN[9] = asn1Extensions.TCB.TCBInfo.Comp10SVN.Value
-	ext.TCB.TCBSVN[10] = asn1Extensions.TCB.TCBInfo.Comp11SVN.Value
-	ext.TCB.TCBSVN[11] = asn1Extensions.TCB.TCBInfo.Comp12SVN.Value
-	ext.TCB.TCBSVN[12] = asn1Extensions.TCB.TCBInfo.Comp13SVN.Value
-	ext.TCB.TCBSVN[13] = asn1Extensions.TCB.TCBInfo.Comp14SVN.Value
-	ext.TCB.TCBSVN[14] = asn1Extensions.TCB.TCBInfo.Comp15SVN.Value
-	ext.TCB.TCBSVN[15] = asn1Extensions.TCB.TCBInfo.Comp16SVN.Value
+	ext.TCB.TCBSVN[0] = uint8(asn1Extensions.TCB.TCBInfo.Comp01SVN.Value)
+	ext.TCB.TCBSVN[1] = uint8(asn1Extensions.TCB.TCBInfo.Comp02SVN.Value)
+	ext.TCB.TCBSVN[2] = uint8(asn1Extensions.TCB.TCBInfo.Comp03SVN.Value)
+	ext.TCB.TCBSVN[3] = uint8(asn1Extensions.TCB.TCBInfo.Comp04SVN.Value)
+	ext.TCB.TCBSVN[4] = uint8(asn1Extensions.TCB.TCBInfo.Comp05SVN.Value)
+	ext.TCB.TCBSVN[5] = uint8(asn1Extensions.TCB.TCBInfo.Comp06SVN.Value)
+	ext.TCB.TCBSVN[6] = uint8(asn1Extensions.TCB.TCBInfo.Comp07SVN.Value)
+	ext.TCB.TCBSVN[7] = uint8(asn1Extensions.TCB.TCBInfo.Comp08SVN.Value)
+	ext.TCB.TCBSVN[8] = uint8(asn1Extensions.TCB.TCBInfo.Comp09SVN.Value)
+	ext.TCB.TCBSVN[9] = uint8(asn1Extensions.TCB.TCBInfo.Comp10SVN.Value)
+	ext.TCB.TCBSVN[10] = uint8(asn1Extensions.TCB.TCBInfo.Comp11SVN.Value)
+	ext.TCB.TCBSVN[11] = uint8(asn1Extensions.TCB.TCBInfo.Comp12SVN.Value)
+	ext.TCB.TCBSVN[12] = uint8(asn1Extensions.TCB.TCBInfo.Comp13SVN.Value)
+	ext.TCB.TCBSVN[13] = uint8(asn1Extensions.TCB.TCBInfo.Comp14SVN.Value)
+	ext.TCB.TCBSVN[14] = uint8(asn1Extensions.TCB.TCBInfo.Comp15SVN.Value)
+	ext.TCB.TCBSVN[15] = uint8(asn1Extensions.TCB.TCBInfo.Comp16SVN.Value)
 
 	return ext, nil
 }

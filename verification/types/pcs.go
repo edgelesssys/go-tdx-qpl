@@ -116,7 +116,7 @@ type QEIdentity struct {
 	MiscSelectMask          uint32     `json:"miscselectMask"`
 	Attributes              [16]byte   `json:"attributes"`
 	AttributesMask          [16]byte   `json:"attributesMask"`
-	MRSigner                [32]byte   `json:"mrSigner"`
+	MRSIGNER                [32]byte   `json:"mrSigner"`
 	ISVProdID               uint16     `json:"isvprodid"`
 	TCBLevels               []TCBLevel `json:"tcbLevels"`
 }
@@ -163,11 +163,11 @@ func (q *QEIdentity) UnmarshalJSON(data []byte) error {
 	}
 	q.AttributesMask = [16]byte(attributesMask)
 
-	mrSigner, err := decodeHexToByte(qeIdentity.MRSigner, 32)
+	mrSigner, err := decodeHexToByte(qeIdentity.MRSIGNER, 32)
 	if err != nil {
-		return fmt.Errorf("decoding MRSigner: %w", err)
+		return fmt.Errorf("decoding MRSIGNER: %w", err)
 	}
-	q.MRSigner = [32]byte(mrSigner)
+	q.MRSIGNER = [32]byte(mrSigner)
 
 	q.ISVProdID = qeIdentity.ISVProdID
 
@@ -197,16 +197,16 @@ type qeIdentityJSON struct {
 	MiscSelectMask          string     `json:"miscselectMask"`
 	Attributes              string     `json:"attributes"`
 	AttributesMask          string     `json:"attributesMask"`
-	MRSigner                string     `json:"mrSigner"`
+	MRSIGNER                string     `json:"mrSigner"`
 	ISVProdID               uint16     `json:"isvprodid"`
 	TCBLevels               []TCBLevel `json:"tcbLevels"`
 }
 
-// TDXModule contains expected MRSigner and attribute information for a TDX enclave.
+// TDXModule contains expected MRSIGNER and attribute information for a TDX enclave.
 type TDXModule struct {
-	MRSigner       [48]byte `json:"mrSigner"`
-	Attributes     uint64   `json:"attributes"`
-	AttributesMask uint64   `json:"attributesMask"`
+	MRSIGNERSEAM       [48]byte `json:"mrSigner"`
+	SEAMAttributes     uint64   `json:"attributes"`
+	SEAMAttributesMask uint64   `json:"attributesMask"`
 }
 
 // UnmarshalJSON parses a JSON representation of the TDX Module into a TDXModule.
@@ -216,32 +216,32 @@ func (t *TDXModule) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("unmarshaling TDX Module JSON: %w", err)
 	}
 
-	mrSigner, err := decodeHexToByte(tdxModule.MRSigner, 48)
+	mrSigner, err := decodeHexToByte(tdxModule.MRSIGNERSEAM, 48)
 	if err != nil {
-		return fmt.Errorf("decoding MRSigner: %w", err)
+		return fmt.Errorf("decoding MRSIGNER: %w", err)
 	}
-	t.MRSigner = [48]byte(mrSigner)
+	t.MRSIGNERSEAM = [48]byte(mrSigner)
 
-	attributes, err := decodeHexToByte(tdxModule.Attributes, 8)
+	attributes, err := decodeHexToByte(tdxModule.SEAMAttributes, 8)
 	if err != nil {
 		return fmt.Errorf("decoding Attributes: %w", err)
 	}
-	t.Attributes = binary.LittleEndian.Uint64(attributes)
-	attributesMask, err := decodeHexToByte(tdxModule.AttributesMask, 8)
+	t.SEAMAttributes = binary.LittleEndian.Uint64(attributes)
+	attributesMask, err := decodeHexToByte(tdxModule.SEAMAttributesMask, 8)
 	if err != nil {
 		return fmt.Errorf("decoding AttributeMask: %w", err)
 	}
-	t.AttributesMask = binary.LittleEndian.Uint64(attributesMask)
+	t.SEAMAttributesMask = binary.LittleEndian.Uint64(attributesMask)
 
 	return nil
 }
 
-// tdxModuleJSON contains expected MRSigner and attribute information for a TDX enclave.
+// tdxModuleJSON contains expected MRSIGNER and attribute information for a TDX enclave.
 // This is the JSON representation of the TCB Info using basic strings and ints.
 type tdxModuleJSON struct {
-	MRSigner       string `json:"mrSigner"`
-	Attributes     string `json:"attributes"`
-	AttributesMask string `json:"attributesMask"`
+	MRSIGNERSEAM       string `json:"mrSigner"`
+	SEAMAttributes     string `json:"attributes"`
+	SEAMAttributesMask string `json:"attributesMask"`
 }
 
 // TCBLevel contains expected TCB information for a TDX enclave.
