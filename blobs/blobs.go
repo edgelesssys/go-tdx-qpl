@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"time"
 )
 
 const (
@@ -22,6 +23,9 @@ var TCBInfoJSON = []byte(`{"tcbInfo":{"id":"TDX","version":3,"issueDate":"2023-0
 
 // QEIdentityJSON is a QE Identity response from Intel's PCS.
 var QEIdentityJSON = []byte(`{"enclaveIdentity":{"id":"TD_QE","version":2,"issueDate":"2023-02-17T10:24:45Z","nextUpdate":"2023-03-19T10:24:45Z","tcbEvaluationDataNumber":14,"miscselect":"00000000","miscselectMask":"FFFFFFFF","attributes":"11000000000000000000000000000000","attributesMask":"FBFFFFFFFFFFFFFF0000000000000000","mrsigner":"DC9E2A7C6F948F17474E34A7FC43ED030F7C1563F1BABDDF6340C82E0E54A8C5","isvprodid":2,"tcbLevels":[{"tcb":{"isvsvn":4},"tcbDate":"2022-11-09T00:00:00Z","tcbStatus":"UpToDate"}]},"signature":"173ab166812ed8e409709fd8d4f8f2b7e43f07afc8b3a185e8948419a5411a77d7ed0615af74ef2a026f55ecafe3492845a4e25374dc6ad45eec993ff713c999"}`)
+
+// PCSIssueDate is a date valid for [TCBInfoJSON] and [QEIdentityJSON].
+var PCSIssueDate = mustParseTime("2023-02-20T00:00:00Z")
 
 // TCBSigningCertPEM is the PEM-encoded signing certificate of [TCBInfoJSON].
 var TCBSigningCertPEM = []byte("-----BEGIN CERTIFICATE-----\nMIICizCCAjKgAwIBAgIUfjiC1ftVKUpASY5FhAPpFJG99FUwCgYIKoZIzj0EAwIw\naDEaMBgGA1UEAwwRSW50ZWwgU0dYIFJvb3QgQ0ExGjAYBgNVBAoMEUludGVsIENv\ncnBvcmF0aW9uMRQwEgYDVQQHDAtTYW50YSBDbGFyYTELMAkGA1UECAwCQ0ExCzAJ\nBgNVBAYTAlVTMB4XDTE4MDUyMTEwNTAxMFoXDTI1MDUyMTEwNTAxMFowbDEeMBwG\nA1UEAwwVSW50ZWwgU0dYIFRDQiBTaWduaW5nMRowGAYDVQQKDBFJbnRlbCBDb3Jw\nb3JhdGlvbjEUMBIGA1UEBwwLU2FudGEgQ2xhcmExCzAJBgNVBAgMAkNBMQswCQYD\nVQQGEwJVUzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABENFG8xzydWRfK92bmGv\nP+mAh91PEyV7Jh6FGJd5ndE9aBH7R3E4A7ubrlh/zN3C4xvpoouGlirMba+W2lju\nypajgbUwgbIwHwYDVR0jBBgwFoAUImUM1lqdNInzg7SVUr9QGzknBqwwUgYDVR0f\nBEswSTBHoEWgQ4ZBaHR0cHM6Ly9jZXJ0aWZpY2F0ZXMudHJ1c3RlZHNlcnZpY2Vz\nLmludGVsLmNvbS9JbnRlbFNHWFJvb3RDQS5kZXIwHQYDVR0OBBYEFH44gtX7VSlK\nQEmORYQD6RSRvfRVMA4GA1UdDwEB/wQEAwIGwDAMBgNVHRMBAf8EAjAAMAoGCCqG\nSM49BAMCA0cAMEQCIB9C8wOAN/ImxDtGACV246KcqjagZOR0kyctyBrsGGJVAiAj\nftbrNGsGU8YH211dRiYNoPPu19Zp/ze8JmhujB0oBw==\n-----END CERTIFICATE-----\n")
@@ -62,4 +66,12 @@ func PCKCRL() *x509.RevocationList {
 		panic(err)
 	}
 	return crl
+}
+
+func mustParseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }

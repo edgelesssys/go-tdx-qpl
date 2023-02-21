@@ -6,6 +6,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/goleak v1.2.0
+	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
 )
 
 require (

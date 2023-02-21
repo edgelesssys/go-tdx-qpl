@@ -53,6 +53,7 @@ import (
 
 	"github.com/edgelesssys/go-tdx-qpl/verification/crypto"
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
+	"k8s.io/utils/clock"
 )
 
 const (
@@ -103,7 +104,8 @@ type pcsAPI interface {
 
 // TrustedServicesClient is a client for Intel's PCS.
 type TrustedServicesClient struct {
-	api pcsAPI
+	api   pcsAPI
+	clock clock.Clock
 }
 
 // New returns a new TrustedServicesClient.
@@ -113,6 +115,7 @@ func New() *TrustedServicesClient {
 			rootCA: crypto.MustParsePEMCertificate([]byte(rootCA)),
 			client: http.DefaultClient,
 		},
+		clock: clock.RealClock{},
 	}
 }
 
@@ -176,6 +179,14 @@ func (t *TrustedServicesClient) GetTCBInfo(ctx context.Context, fmspc [6]byte) (
 		return types.TCBInfo{}, fmt.Errorf("unmarshaling TCB Info: %w", err)
 	}
 
+	now := t.clock.Now()
+	if tcbInfo.IssueDate.After(now) {
+		return types.TCBInfo{}, fmt.Errorf("TCB Info not yet valid: current time: %s, TCB Info issue date: %s", now, tcbInfo.IssueDate)
+	}
+	if tcbInfo.NextUpdate.Before(now) {
+		return types.TCBInfo{}, fmt.Errorf("TCB Info has expired: current time: %s, TCB Info scheduled update: %s", now, tcbInfo.NextUpdate)
+	}
+
 	return tcbInfo, nil
 }
 
@@ -208,6 +219,14 @@ func (t *TrustedServicesClient) GetQEIdentity(ctx context.Context) (types.QEIden
 	var qeIdentity types.QEIdentity
 	if err := json.Unmarshal(pcsResponse.QEIdentity, &qeIdentity); err != nil {
 		return types.QEIdentity{}, fmt.Errorf("unmarshaling QE Identity: %w", err)
+	}
+
+	now := t.clock.Now()
+	if qeIdentity.IssueDate.After(now) {
+		return types.QEIdentity{}, fmt.Errorf("QE Identity not yet valid: current time: %s, TCB Info issue date: %s", now, qeIdentity.IssueDate)
+	}
+	if qeIdentity.NextUpdate.Before(now) {
+		return types.QEIdentity{}, fmt.Errorf("QE Identity has expired: current time: %s, TCB Info scheduled update: %s", now, qeIdentity.NextUpdate)
 	}
 
 	return qeIdentity, nil

@@ -12,6 +12,7 @@ import (
 	"github.com/edgelesssys/go-tdx-qpl/blobs"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
+	testclock "k8s.io/utils/clock/testing"
 )
 
 func TestMain(m *testing.M) {
@@ -21,7 +22,8 @@ func TestMain(m *testing.M) {
 func TestGetPCKCRL(t *testing.T) {
 	assert := assert.New(t)
 	client := &TrustedServicesClient{
-		api: &fakeAPI{},
+		api:   &fakeAPI{},
+		clock: testclock.NewFakeClock(blobs.PCSIssueDate),
 	}
 
 	crl, intermediateCert, err := client.GetPCKCRL(context.Background(), TDXPlatform)
@@ -33,7 +35,8 @@ func TestGetPCKCRL(t *testing.T) {
 func TestGetTCBInfo(t *testing.T) {
 	assert := assert.New(t)
 	client := &TrustedServicesClient{
-		api: &fakeAPI{},
+		api:   &fakeAPI{},
+		clock: testclock.NewFakeClock(blobs.PCSIssueDate),
 	}
 
 	tcbInfo, err := client.GetTCBInfo(context.Background(), [6]byte{0x00, 0x80, 0x6F, 0x05, 0x00, 0x00})
@@ -44,7 +47,8 @@ func TestGetTCBInfo(t *testing.T) {
 func TestGetQEIdentity(t *testing.T) {
 	assert := assert.New(t)
 	client := &TrustedServicesClient{
-		api: &fakeAPI{},
+		api:   &fakeAPI{},
+		clock: testclock.NewFakeClock(blobs.PCSIssueDate),
 	}
 
 	qeIdentity, err := client.GetQEIdentity(context.Background())
