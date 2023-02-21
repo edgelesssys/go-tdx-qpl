@@ -48,9 +48,7 @@ func New() *TDXVerifier {
 }
 
 // Verify verifies a TDX quote.
-//
-// This is the high level API function that handles retrieval of TDX collateral from Intel's PCS.
-// Use [*TDXVerifier.VerifyQuote] and [*TDXVerifier.VerifyPCKCert] if you want to handle collateral retrieval and verification yourself.
+// The required TDX collateral is retrieved from Intel's PCS, and verified against a trusted Root CA.
 func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) (types.SGXQuote4, error) {
 	quote, err := types.ParseQuote(rawQuote)
 	if err != nil {
@@ -72,7 +70,7 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) (types.SGXQuo
 		return types.SGXQuote4{}, fmt.Errorf("getting PCK CRL: %w", err)
 	}
 
-	if err := v.VerifyPCKCert(pckCert, pckIntermediateCert, pckCrl); err != nil {
+	if err := v.verifyPCKCert(pckCert, pckIntermediateCert, pckCrl); err != nil {
 		return types.SGXQuote4{}, fmt.Errorf("verifying PCK certificate: %w", err)
 	}
 
@@ -91,14 +89,14 @@ func (v *TDXVerifier) Verify(ctx context.Context, rawQuote []byte) (types.SGXQuo
 		return types.SGXQuote4{}, fmt.Errorf("getting QE Identity: %w", err)
 	}
 
-	if err := v.VerifyQuote(quote, pckCert, tcbInfo, qeIdentity); err != nil {
+	if err := v.verifyQuote(quote, pckCert, tcbInfo, qeIdentity); err != nil {
 		return types.SGXQuote4{}, fmt.Errorf("verifying TDX quote: %w", err)
 	}
 	return quote, nil
 }
 
-// VerifyQuote verifies the TDX quote using the PCK certificate, TCB Info, and QE Identity.
-func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certificate, tcbInfo types.TCBInfo, qeIdentity types.QEIdentity) error {
+// verifyQuote verifies the TDX quote using the PCK certificate, TCB Info, and QE Identity.
+func (v *TDXVerifier) verifyQuote(quote types.SGXQuote4, pckCert *x509.Certificate, tcbInfo types.TCBInfo, qeIdentity types.QEIdentity) error {
 	// 4.1.2.4.9
 	if tcbInfo.Version >= types.TCBInfoMinVersion {
 		if tcbInfo.ID != types.TCBInfoTDXID {
@@ -233,9 +231,8 @@ func (v *TDXVerifier) VerifyQuote(quote types.SGXQuote4, pckCert *x509.Certifica
 	return nil
 }
 
-// VerifyPCKCert verifies the PCK certificate was not revoked and is signed by pckCA.
-// The pckCA certificate is assumed to be trusted and should be verified by the caller using a trusted root CA.
-func (v *TDXVerifier) VerifyPCKCert(pckCert, pckCA *x509.Certificate, pckCRL *x509.RevocationList) error {
+// verifyPCKCert verifies the PCK certificate was not revoked and is signed by the trusted pckCA.
+func (v *TDXVerifier) verifyPCKCert(pckCert, pckCA *x509.Certificate, pckCRL *x509.RevocationList) error {
 	// Check if PCK cert is revoked
 	for _, crlEntry := range pckCRL.RevokedCertificates {
 		if crlEntry.SerialNumber.Cmp(pckCert.SerialNumber) == 0 {

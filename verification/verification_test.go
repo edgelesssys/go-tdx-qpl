@@ -34,7 +34,7 @@ func TestVerifyQuote(t *testing.T) {
 
 	// Verify the quote
 	verifier := TDXVerifier{}
-	err = verifier.VerifyQuote(quote, pckCert, tcbInfo.TCBInfo, qeIdentity.QEIdentity)
+	err = verifier.verifyQuote(quote, pckCert, tcbInfo.TCBInfo, qeIdentity.QEIdentity)
 	assert.NoError(err)
 }
 
@@ -50,7 +50,7 @@ func TestVerifyPCKCert(t *testing.T) {
 
 	// Verify the PCK certificate
 	verifier := TDXVerifier{}
-	err = verifier.VerifyPCKCert(pckCert, blobs.CRLSigningCert(), blobs.PCKCRL())
+	err = verifier.verifyPCKCert(pckCert, blobs.CRLSigningCert(), blobs.PCKCRL())
 	assert.NoError(err)
 }
 
@@ -238,7 +238,7 @@ func runVerifyTest(
 
 	// Verify the quote
 	verifier := TDXVerifier{}
-	err := verifier.VerifyQuote(quote, pckCert, tcbInfo, qeIdentity)
+	err := verifier.verifyQuote(quote, pckCert, tcbInfo, qeIdentity)
 	if err != nil {
 		verifiyErr := &VerificationError{}
 		require.ErrorAs(err, &verifiyErr)
