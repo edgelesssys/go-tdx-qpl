@@ -47,7 +47,7 @@ func New() *TDXVerifier {
 	return &TDXVerifier{pcsClient: pcs.New()}
 }
 
-// VerifyQuote verifies a TDX quote.
+// Verify verifies a TDX quote.
 //
 // This is the high level API function that handles retrieval of TDX collateral from Intel's PCS.
 // Use [*TDXVerifier.VerifyQuote] and [*TDXVerifier.VerifyPCKCert] if you want to handle collateral retrieval and verification yourself.

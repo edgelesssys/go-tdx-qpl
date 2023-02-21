@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
+	"github.com/edgelesssys/go-tdx-qpl/blobs"
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
 )
 
@@ -15,12 +15,7 @@ func main() {
 }
 
 func parseBlob() error {
-	rawQuote, err := os.ReadFile("../../blobs/quote")
-	if err != nil {
-		return err
-	}
-
-	parsedQuote, err := types.ParseQuote(rawQuote)
+	parsedQuote, err := types.ParseQuote(blobs.TDXQuote())
 	if err != nil {
 		return err
 	}

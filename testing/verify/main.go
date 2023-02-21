@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/edgelesssys/go-tdx-qpl/blobs"
 	"github.com/edgelesssys/go-tdx-qpl/verification"
 )
 
@@ -17,12 +18,6 @@ func main() {
 
 func testVerify() error {
 	verifier := verification.New()
-
-	quote, err := os.ReadFile("./blobs/quote")
-	if err != nil {
-		return err
-	}
-
-	_, err = verifier.Verify(context.Background(), quote)
+	_, err := verifier.Verify(context.Background(), blobs.TDXQuote())
 	return err
 }
