@@ -264,7 +264,7 @@ func (v *TDXVerifier) VerifyPCKCert(pckCert, pckCA *x509.Certificate, pckCRL *x5
 
 // verifyQEIdentityStatus verifies the EnclaveReport QE Identity against the QE Identity.
 func (v *TDXVerifier) verifyQEIdentityStatus(enclaveIdentity types.QEIdentity, report types.EnclaveReport) status.Status {
-	/// 4.1.2.9.5
+	// 4.1.2.9.5
 	if (report.MiscSelect & enclaveIdentity.MiscSelectMask) != enclaveIdentity.MiscSelect {
 		return status.SGX_ENCLAVE_REPORT_MISCSELECT_MISMATCH
 	}
