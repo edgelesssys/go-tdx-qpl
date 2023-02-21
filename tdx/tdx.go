@@ -15,8 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// guestDevice is the path to the TDX guest device.
-const guestDevice = "/dev/tdx-guest"
+// GuestDevice is the path to the TDX guest device.
+const GuestDevice = "/dev/tdx-guest"
 
 // tdxQuoteType is the type of quote to request.
 const tdxQuoteType = uint32(2)
@@ -47,12 +47,12 @@ func IsTDXDevice(device Device) bool {
 	if !ok {
 		return false
 	}
-	return f.Name() == guestDevice
+	return f.Name() == GuestDevice
 }
 
 // Open opens the TDX guest device and returns a handle to it.
 func Open() (Device, error) {
-	device, err := os.Open(guestDevice)
+	device, err := os.Open(GuestDevice)
 	if err != nil {
 		return nil, err
 	}
