@@ -96,8 +96,11 @@ const (
 	TDX_MODULE_MISMATCH
 )
 
+// TCBStatus is a string representation of the TCB status found in TCBInfo.
 type TCBStatus string
 
+// List of possible TCB status values found in TCBInfo.
+// See: https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/32b80caa1815fd00801d42d1ff8cbf82784ca21b/QuoteVerification/QVL/Src/AttestationLibrary/src/Verifiers/TcbStatus.h
 const (
 	UpToDate                          TCBStatus = "UpToDate"
 	ConfigurationNeeded               TCBStatus = "ConfigurationNeeded"

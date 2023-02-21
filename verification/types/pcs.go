@@ -176,6 +176,7 @@ func (q *QEIdentity) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// GetTCBStatus returns the TCB status from QEIdentity for the given ISV SVN.
 func (i *QEIdentity) GetTCBStatus(isvSvn uint16) status.TCBStatus {
 	for _, tcbLevel := range i.TCBLevels {
 		if tcbLevel.TCB.ISVSVN == isvSvn {
@@ -295,6 +296,9 @@ type TCBComponent struct {
 	Type     string `json:"type"`
 }
 
+// decodeHexToByte decodes a hex string into a byte array.
+// This function errors if the decoded string is not the expected length,
+// to save the caller from having to check the length when parsing into fixed-size arrays.
 func decodeHexToByte(in string, expectedLen int) ([]byte, error) {
 	out, err := hex.DecodeString(in)
 	if err != nil {
