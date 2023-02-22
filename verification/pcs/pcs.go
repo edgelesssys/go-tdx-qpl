@@ -40,28 +40,29 @@ package pcs
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"net/url"
 	"path"
 	"time"
 
+	"github.com/edgelesssys/go-tdx-qpl/verification/crypto"
 	"github.com/edgelesssys/go-tdx-qpl/verification/types"
+	"k8s.io/utils/clock"
 )
 
-// TODO:
-// 		Add custom marshaling for types.TCBInfo and types.QEIdentity structs
-
 const (
+	// TDXPlatform is used to retrieve a TDX Platform CA certificate.
+	TDXPlatform = "platform"
+
+	// TDXProcessor is used to retrieve a TDX Processor CA certificate.
+	TDXProcessor = "processor"
+
 	// rootCA is the PEM encoded Intel SGX/TDX Root CA Certificate.
 	rootCA = "-----BEGIN CERTIFICATE-----\nMIICjzCCAjSgAwIBAgIUImUM1lqdNInzg7SVUr9QGzknBqwwCgYIKoZIzj0EAwIw\naDEaMBgGA1UEAwwRSW50ZWwgU0dYIFJvb3QgQ0ExGjAYBgNVBAoMEUludGVsIENv\ncnBvcmF0aW9uMRQwEgYDVQQHDAtTYW50YSBDbGFyYTELMAkGA1UECAwCQ0ExCzAJ\nBgNVBAYTAlVTMB4XDTE4MDUyMTEwNDUxMFoXDTQ5MTIzMTIzNTk1OVowaDEaMBgG\nA1UEAwwRSW50ZWwgU0dYIFJvb3QgQ0ExGjAYBgNVBAoMEUludGVsIENvcnBvcmF0\naW9uMRQwEgYDVQQHDAtTYW50YSBDbGFyYTELMAkGA1UECAwCQ0ExCzAJBgNVBAYT\nAlVTMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEC6nEwMDIYZOj/iPWsCzaEKi7\n1OiOSLRFhWGjbnBVJfVnkY4u3IjkDYYL0MxO4mqsyYjlBalTVYxFP2sJBK5zlKOB\nuzCBuDAfBgNVHSMEGDAWgBQiZQzWWp00ifODtJVSv1AbOScGrDBSBgNVHR8ESzBJ\nMEegRaBDhkFodHRwczovL2NlcnRpZmljYXRlcy50cnVzdGVkc2VydmljZXMuaW50\nZWwuY29tL0ludGVsU0dYUm9vdENBLmRlcjAdBgNVHQ4EFgQUImUM1lqdNInzg7SV\nUr9QGzknBqwwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQEwCgYI\nKoZIzj0EAwIDSQAwRgIhAOW/5QkR+S9CiSDcNoowLuPRLsWGf/Yi7GSX94BgwTwg\nAiEA4J0lrHoMs+Xo5o/sX6O9QWxHRAvZUGOdRQ7cvqRXaqI=\n-----END CERTIFICATE-----\n"
 	// rootCACRLURL is the URL for Intel's Root CA CRL.
@@ -78,8 +79,11 @@ const (
 	apiVersion = "v4"
 	// pckcrlPath is the path to the PCK CRL chain.
 	pckcrlPath = "pckcrl"
-	// pckcrlQuery is the query to use when retrieving the PCK CRL chain.
-	pckcrlQuery = "ca=platform&encoding=der"
+	// pckcrlEncodingQuery is the query to use when retrieving the PCK CRL chain.
+	pckcrlEncodingQuery = "encoding"
+	pckcrlEncodingType  = "der"
+	// pckcrlCAQuery is the query to use when retrieving the PCK CRL chain.
+	pckcrlCAQuery = "ca"
 	// pckcrlHeader is a header containing the PCK CRL issuer chain.
 	pckcrlHeader = "Sgx-Pck-Crl-Issuer-Chain"
 	// qePath is the path to the QE Identity information.
@@ -100,29 +104,30 @@ type pcsAPI interface {
 
 // TrustedServicesClient is a client for Intel's PCS.
 type TrustedServicesClient struct {
-	api pcsAPI
+	api   pcsAPI
+	clock clock.Clock
 }
 
 // New returns a new TrustedServicesClient.
-func New() (*TrustedServicesClient, error) {
-	block, _ := pem.Decode([]byte(rootCA))
-	rootCA, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parsing root CA: %w", err)
-	}
-
+func New() *TrustedServicesClient {
 	return &TrustedServicesClient{
 		api: &pcsAPIClient{
-			rootCA: rootCA,
+			rootCA: crypto.MustParsePEMCertificate([]byte(rootCA)),
 			client: http.DefaultClient,
 		},
-	}, nil
+		clock: clock.RealClock{},
+	}
 }
 
 // GetPCKCRL retrieves the PCK CRL chain and PCK CA cert from Intel's PCS.
-func (t *TrustedServicesClient) GetPCKCRL(ctx context.Context) (*x509.RevocationList, *x509.Certificate, error) {
+func (t *TrustedServicesClient) GetPCKCRL(ctx context.Context, caType string) (*x509.RevocationList, *x509.Certificate, error) {
 	url := getPCSURL(sgxAPI, pckcrlPath)
-	url.RawQuery = pckcrlQuery
+
+	query := url.Query()
+	query.Add(pckcrlCAQuery, caType)
+	query.Add(pckcrlEncodingQuery, pckcrlEncodingType)
+	url.RawQuery = query.Encode()
+
 	pckCRLRaw, pckCACert, err := t.api.getFromPCS(ctx, url, pckcrlHeader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting PCK CRL from PCS: %w", err)
@@ -165,13 +170,21 @@ func (t *TrustedServicesClient) GetTCBInfo(ctx context.Context, fmspc [6]byte) (
 		return types.TCBInfo{}, fmt.Errorf("decoding TCB Info signature: %w", err)
 	}
 
-	if err := verifyPCSSignature(tcbSigningCert, pcsResponse.TCBInfo, signature); err != nil {
+	if err := crypto.VerifyECDSASignature(tcbSigningCert.PublicKey, pcsResponse.TCBInfo, signature); err != nil {
 		return types.TCBInfo{}, fmt.Errorf("verifying TCB Info signature: %w", err)
 	}
 
 	var tcbInfo types.TCBInfo
 	if err := json.Unmarshal(pcsResponse.TCBInfo, &tcbInfo); err != nil {
 		return types.TCBInfo{}, fmt.Errorf("unmarshaling TCB Info: %w", err)
+	}
+
+	now := t.clock.Now()
+	if tcbInfo.IssueDate.After(now) {
+		return types.TCBInfo{}, fmt.Errorf("TCB Info not yet valid: current time: %s, TCB Info issue date: %s", now, tcbInfo.IssueDate)
+	}
+	if tcbInfo.NextUpdate.Before(now) {
+		return types.TCBInfo{}, fmt.Errorf("TCB Info has expired: current time: %s, TCB Info scheduled update: %s", now, tcbInfo.NextUpdate)
 	}
 
 	return tcbInfo, nil
@@ -199,13 +212,21 @@ func (t *TrustedServicesClient) GetQEIdentity(ctx context.Context) (types.QEIden
 		return types.QEIdentity{}, fmt.Errorf("decoding QE Identity signature: %w", err)
 	}
 
-	if err := verifyPCSSignature(qeSigningCert, pcsResponse.QEIdentity, signature); err != nil {
+	if err := crypto.VerifyECDSASignature(qeSigningCert.PublicKey, pcsResponse.QEIdentity, signature); err != nil {
 		return types.QEIdentity{}, fmt.Errorf("verifying QE Identity signature: %w", err)
 	}
 
 	var qeIdentity types.QEIdentity
 	if err := json.Unmarshal(pcsResponse.QEIdentity, &qeIdentity); err != nil {
 		return types.QEIdentity{}, fmt.Errorf("unmarshaling QE Identity: %w", err)
+	}
+
+	now := t.clock.Now()
+	if qeIdentity.IssueDate.After(now) {
+		return types.QEIdentity{}, fmt.Errorf("QE Identity not yet valid: current time: %s, TCB Info issue date: %s", now, qeIdentity.IssueDate)
+	}
+	if qeIdentity.NextUpdate.Before(now) {
+		return types.QEIdentity{}, fmt.Errorf("QE Identity has expired: current time: %s, TCB Info scheduled update: %s", now, qeIdentity.NextUpdate)
 	}
 
 	return qeIdentity, nil
@@ -339,16 +360,7 @@ func issuerChainFromCertHeader(header string) ([]*x509.Certificate, error) {
 		return nil, fmt.Errorf("decoding certificate chain from PCS response header: %w", err)
 	}
 
-	var signingChain []*x509.Certificate
-	for block, rest := pem.Decode([]byte(certChain)); block != nil; block, rest = pem.Decode(rest) {
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("parsing certificate from PEM: %w", err)
-		}
-
-		signingChain = append(signingChain, cert)
-	}
-	return signingChain, nil
+	return crypto.ParsePEMCertificateChain([]byte(certChain))
 }
 
 // getPCSURL returns a URL to connect to the PCS for the given path.
@@ -358,29 +370,6 @@ func getPCSURL(apiType, requestPath string) *url.URL {
 		Host:   baseURL,
 		Path:   path.Join(apiType, requestType, apiVersion, requestPath),
 	}
-}
-
-// verifyPCSSignature verifies the signature of a PCS response
-// using the public key of the provided signing certificate.
-func verifyPCSSignature(signingCert *x509.Certificate, data, signature []byte) error {
-	if signingCert == nil {
-		return errors.New("no signing cert provided")
-	}
-	signingKey, ok := signingCert.PublicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return errors.New("signing cert public key is not an ECDSA key")
-	}
-	if len(signature) != 64 {
-		return fmt.Errorf("invalid ECDSA signature: expected 64 bytes but got %d bytes", len(signature))
-	}
-	r := new(big.Int).SetBytes(signature[:32])
-	s := new(big.Int).SetBytes(signature[32:64])
-
-	toVerify := sha256.Sum256(data)
-	if !ecdsa.Verify(signingKey, toVerify[:], r, s) {
-		return errors.New("failed to verify signature using ECDSA public key")
-	}
-	return nil
 }
 
 // pcsJSONBody is used to unmarshal the response body of a PCS JSON into a byte slice.

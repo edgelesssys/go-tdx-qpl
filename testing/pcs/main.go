@@ -16,12 +16,9 @@ func main() {
 }
 
 func pcsConnection() error {
-	client, err := pcs.New()
-	if err != nil {
-		return err
-	}
+	client := pcs.New()
 
-	crl, intermediateCert, err := client.GetPCKCRL(context.Background())
+	crl, intermediateCert, err := client.GetPCKCRL(context.Background(), pcs.TDXPlatform)
 	if err != nil {
 		return err
 	}
