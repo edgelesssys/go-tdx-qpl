@@ -85,9 +85,9 @@ func ReadRTMRs(tdx Device) ([4][48]byte, error) {
 		return [4][48]byte{}, fmt.Errorf("creating report: %w", err)
 	}
 
-	// The RTMRs are located at offset 328 in the report
+	// The RTMRs are located at offset 720 in the report
 	// There are 4 RTMRs, each 48 bytes long
-	rtmr := [4][48]byte{[48]byte(report[328:376]), [48]byte(report[376:424]), [48]byte(report[424:472]), [48]byte(report[472:520])}
+	rtmr := [4][48]byte{[48]byte(report[720:768]), [48]byte(report[768:816]), [48]byte(report[816:864]), [48]byte(report[864:912])}
 
 	return rtmr, nil
 }
