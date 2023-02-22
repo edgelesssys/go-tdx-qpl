@@ -121,9 +121,11 @@ func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("marshaling quote request: %w", err)
 	}
 
-	if len(serializedQuoteRequest) != 16356 {
-		return nil, fmt.Errorf("invalid serialized quote request length: expected 16356 bytes, got %d bytes", len(serializedQuoteRequest))
+	if len(serializedQuoteRequest) > 16356 {
+		return nil, fmt.Errorf("invalid serialized quote request length: expected no more than 16356 bytes, got %d bytes", len(serializedQuoteRequest))
 	}
+	protobufData := [16356]byte{}
+	copy(protobufData[:], serializedQuoteRequest)
 
 	var transferLength [4]byte
 	binary.BigEndian.PutUint32(transferLength[:], uint32(len(serializedQuoteRequest)))
@@ -135,7 +137,7 @@ func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 		// outputLength:   uint32(unsafe.Sizeof(tdxRequestQuoteWrapper{})) - 24,
 		outputLength:   16360,
 		transferLength: transferLength,
-		protobufData:   [16356]byte(serializedQuoteRequest),
+		protobufData:   protobufData,
 	}
 
 	outerWrapper := requestQuoteOuterWrapper{
