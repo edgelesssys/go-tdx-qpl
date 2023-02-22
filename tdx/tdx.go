@@ -85,11 +85,6 @@ func ReadRTMRs(tdx Device) ([4][48]byte, error) {
 		return [4][48]byte{}, fmt.Errorf("creating report: %w", err)
 	}
 
-	// SGXReport2 is a total of 584 bytes long
-	if len(report) != 584 {
-		return [4][48]byte{}, fmt.Errorf("invalid report length: %d", len(report))
-	}
-
 	// The RTMRs are located at offset 328 in the report
 	// There are 4 RTMRs, each 48 bytes long
 	rtmr := [4][48]byte{[48]byte(report[328:376]), [48]byte(report[376:424]), [48]byte(report[424:472]), [48]byte(report[472:520])}
@@ -112,7 +107,7 @@ func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 	}
 
 	getQuoteRequest := tdxproto.Request_GetQuoteRequest{
-		Report: tdReport,
+		Report: tdReport[:],
 		IdList: tdxReportUUID,
 	}
 
@@ -126,21 +121,21 @@ func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("marshaling quote request: %w", err)
 	}
 
+	if len(serializedQuoteRequest) != 16356 {
+		return nil, fmt.Errorf("invalid serialized quote request length: expected 16356 bytes, got %d bytes", len(serializedQuoteRequest))
+	}
+
 	var transferLength [4]byte
 	binary.BigEndian.PutUint32(transferLength[:], uint32(len(serializedQuoteRequest)))
 
-	transferLengthUint32 := [4]byte{transferLength[0], transferLength[1], transferLength[2], transferLength[3]}
-
-	var protobufData [4*4*1024 - 28]byte
-	copy(protobufData[:], serializedQuoteRequest)
 	quoteRequestWrapper := requestQuoteWrapper{
 		version:     1,
 		status:      0,
 		inputLength: 4 + uint32(len(serializedQuoteRequest)),
 		// outputLength:   uint32(unsafe.Sizeof(tdxRequestQuoteWrapper{})) - 24,
-		outputLength:   16384 - 24,
-		transferLength: transferLengthUint32,
-		protobufData:   protobufData,
+		outputLength:   16360,
+		transferLength: transferLength,
+		protobufData:   [16356]byte(serializedQuoteRequest),
 	}
 
 	outerWrapper := requestQuoteOuterWrapper{
@@ -160,7 +155,7 @@ func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 	return quoteResponse.GetGetQuoteResponse().Quote, nil
 }
 
-func createReport(tdx Device, reportData [64]byte) ([]byte, error) {
+func createReport(tdx Device, reportData [64]byte) ([1024]byte, error) {
 	var tdReport [1024]byte
 	reportRequest := reportRequest{
 		subtype:          0,
@@ -171,9 +166,9 @@ func createReport(tdx Device, reportData [64]byte) ([]byte, error) {
 	}
 
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, tdx.Fd(), requestReport, uintptr(unsafe.Pointer(&reportRequest))); errno != 0 {
-		return nil, fmt.Errorf("creating TDX report: %w", errno)
+		return [1024]byte{}, fmt.Errorf("creating TDX report: %w", errno)
 	}
-	return tdReport[:], nil
+	return tdReport, nil
 }
 
 // extendRTMREvent is the structure used to extend RTMRs in TDX.
@@ -215,8 +210,8 @@ type requestQuoteWrapper struct {
 	status         uint64
 	inputLength    uint32
 	outputLength   uint32
-	transferLength [4]byte             // BIG-ENDIAN
-	protobufData   [4*4*1024 - 28]byte // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/qgs/qgs.message.proto
+	transferLength [4]byte     // BIG-ENDIAN
+	protobufData   [16356]byte // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/qgs/qgs.message.proto
 }
 
 // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L82-L86
