@@ -75,21 +75,28 @@ func ExtendRTMR(tdx Device, extendData []byte, index uint8) error {
 	return nil
 }
 
-// ReadRTMRs reads the RTMRs of a TDX guest.
-func ReadRTMRs(tdx Device) ([4][48]byte, error) {
+// ReadMeasurements reads the MRTD and RTMRs of a TDX guest.
+func ReadMeasurements(tdx Device) ([5][48]byte, error) {
 	// TDX does not support directly reading RTMRs
 	// Instead, create a new report with zeroed user data,
-	// and read the RTMR from the report
+	// and read the RTMRs and MRTD from the report
 	report, err := createReport(tdx, [64]byte{0x00})
 	if err != nil {
-		return [4][48]byte{}, fmt.Errorf("creating report: %w", err)
+		return [5][48]byte{}, fmt.Errorf("creating report: %w", err)
 	}
 
-	// The RTMRs are located at offset 720 in the report
-	// There are 4 RTMRs, each 48 bytes long
-	rtmr := [4][48]byte{[48]byte(report[720:768]), [48]byte(report[768:816]), [48]byte(report[816:864]), [48]byte(report[864:912])}
+	// MRTD is located at offset 528 in the report
+	// RTMRs start at offset 720 in the report
+	// All measurements are 48 bytes long
+	measurements := [5][48]byte{
+		[48]byte(report[528:576]), // MRTD
+		[48]byte(report[720:768]), // RTMR0
+		[48]byte(report[768:816]), // RTMR1
+		[48]byte(report[816:864]), // RTMR2
+		[48]byte(report[864:912]), // RTMR3
+	}
 
-	return rtmr, nil
+	return measurements, nil
 }
 
 // GenerateQuote generates a TDX quote for the given user data.
