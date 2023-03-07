@@ -16,7 +16,7 @@ func main() {
 }
 
 func testTDX() error {
-	handle, err := tdx.Open()
+	handle, err := os.Open(tdx.GuestDevice)
 	if err != nil {
 		return err
 	}
