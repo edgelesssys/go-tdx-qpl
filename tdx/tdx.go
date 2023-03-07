@@ -41,15 +41,6 @@ type Device interface {
 	Fd() uintptr
 }
 
-// IsTDXDevice checks if the given device is a TDX guest device.
-func IsTDXDevice(device Device) bool {
-	f, ok := device.(*os.File)
-	if !ok {
-		return false
-	}
-	return f.Name() == GuestDevice
-}
-
 // Open opens the TDX guest device and returns a handle to it.
 func Open() (Device, error) {
 	device, err := os.Open(GuestDevice)
