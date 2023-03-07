@@ -5,8 +5,6 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"fmt"
-	"io"
-	"os"
 	"unsafe"
 
 	"github.com/edgelesssys/go-tdx-qpl/tdx/tdxproto"
@@ -35,24 +33,13 @@ var tdxReportUUID = []*tdxproto.UUID{{
 	Value: []byte{0xe8, 0x6c, 0x04, 0x6e, 0x8c, 0xc4, 0x4d, 0x95, 0x81, 0x73, 0xfc, 0x43, 0xc1, 0xfa, 0x4f, 0x3f},
 }}
 
-// Device is a handle to the TDX guest device.
-type Device interface {
-	io.ReadWriteCloser
+// device is a handle to the TDX guest device.
+type device interface {
 	Fd() uintptr
 }
 
-// Open opens the TDX guest device and returns a handle to it.
-func Open() (Device, error) {
-	device, err := os.Open(GuestDevice)
-	if err != nil {
-		return nil, err
-	}
-
-	return device, nil
-}
-
 // ExtendRTMR extends the RTMR with the given data.
-func ExtendRTMR(tdx Device, extendData []byte, index uint8) error {
+func ExtendRTMR(tdx device, extendData []byte, index uint8) error {
 	extendDataHash := sha512.Sum384(extendData)
 	extendEvent := extendRTMREvent{
 		algoID:       5, // HASH_ALGO_SHA384 -> linux/include/uapi/linux/hash_info.h
@@ -67,7 +54,7 @@ func ExtendRTMR(tdx Device, extendData []byte, index uint8) error {
 }
 
 // ReadMeasurements reads the MRTD and RTMRs of a TDX guest.
-func ReadMeasurements(tdx Device) ([5][48]byte, error) {
+func ReadMeasurements(tdx device) ([5][48]byte, error) {
 	// TDX does not support directly reading RTMRs
 	// Instead, create a new report with zeroed user data,
 	// and read the RTMRs and MRTD from the report
@@ -92,7 +79,7 @@ func ReadMeasurements(tdx Device) ([5][48]byte, error) {
 
 // GenerateQuote generates a TDX quote for the given user data.
 // User Data may not be longer than 64 bytes.
-func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
+func GenerateQuote(tdx device, userData []byte) ([]byte, error) {
 	if len(userData) > 64 {
 		return nil, fmt.Errorf("user data must not be longer than 64 bytes, received %d bytes", len(userData))
 	}
@@ -155,7 +142,7 @@ func GenerateQuote(tdx Device, userData []byte) ([]byte, error) {
 	return quoteResponse.GetGetQuoteResponse().Quote, nil
 }
 
-func createReport(tdx Device, reportData [64]byte) ([1024]byte, error) {
+func createReport(tdx device, reportData [64]byte) ([1024]byte, error) {
 	var tdReport [1024]byte
 	reportRequest := reportRequest{
 		subtype:          0,
