@@ -7,17 +7,27 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/edgelesssys/go-tdx-qpl/tdx/tdxproto"
 	"github.com/vtolstov/go-ioctl"
 	"golang.org/x/sys/unix"
-	"google.golang.org/protobuf/proto"
 )
 
-// GuestDevice is the path to the TDX guest device.
-const GuestDevice = "/dev/tdx-guest"
+const (
+	// GuestDevice is the path to the TDX guest device.
+	GuestDevice = "/dev/tdx-guest"
+	// tdxQuoteType is the type of quote to request.
+	tdxQuoteType = uint32(2)
+	// requestBufferSize is the size of the quote request buffer.
+	// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/71557c7d1d869b6bd6f95566c051cbd098549509/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L103
+	requestBufferSize = 4 * 4 * 1024
+)
 
-// tdxQuoteType is the type of quote to request.
-const tdxQuoteType = uint32(2)
+// QGS message types: https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/09666b3b14147145232ea4f28d85762ca5da3c5d/QuoteGeneration/quote_wrapper/qgs_msg_lib/inc/qgs_msg_lib.h#L63-L69
+const (
+	qgsGetQuoteRequestType = iota
+	qgsGetQuoteResponseType
+	qgsGetCollateralRequestType
+	qgsGetCollateralResponseType
+)
 
 // IOCTL calls for quote generation
 // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L53-L56
@@ -26,12 +36,6 @@ var (
 	requestQuote  = ioctl.IOR('T', 0x02, 8)
 	extendRTMR    = ioctl.IOWR('T', 0x03, 8)
 )
-
-// tdxReportUUID is a UUID to request TDX quotes.
-// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.h#L70
-var tdxReportUUID = []*tdxproto.UUID{{
-	Value: []byte{0xe8, 0x6c, 0x04, 0x6e, 0x8c, 0xc4, 0x4d, 0x95, 0x81, 0x73, 0xfc, 0x43, 0xc1, 0xfa, 0x4f, 0x3f},
-}}
 
 // device is a handle to the TDX guest device.
 type device interface {
@@ -91,55 +95,57 @@ func GenerateQuote(tdx device, userData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("creating report: %w", err)
 	}
 
-	getQuoteRequest := tdxproto.Request_GetQuoteRequest{
-		Report: tdReport[:],
-		IdList: tdxReportUUID,
+	qgsGetQuoteRequest := qgsGetQuoteRequestMessage{
+		reportSize:      1024, // cannot be 0
+		selectedIDSize:  0,
+		idListSize:      0,
+		reportAndIDList: uintptr(unsafe.Pointer(&tdReport)),
 	}
 
-	quoteType := tdxQuoteType
-	quoteRequest := tdxproto.Request{
-		Type: &quoteType,
-		Msg:  &tdxproto.Request_GetQuoteRequest_{GetQuoteRequest: &getQuoteRequest},
-	}
-	serializedQuoteRequest, err := proto.Marshal(&quoteRequest)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling quote request: %w", err)
-	}
+	messageSize := uint32(unsafe.Sizeof(qgsGetQuoteRequest)) + qgsGetQuoteRequest.reportSize
 
-	if len(serializedQuoteRequest) > 16356 {
-		return nil, fmt.Errorf("invalid serialized quote request length: expected no more than 16356 bytes, got %d bytes", len(serializedQuoteRequest))
+	qgsGetQuestRequestHeader := qgsMessageHeader{
+		majorVersion: 1,
+		minorVersion: 0,
+		messageType:  qgsGetQuoteRequestType,
+		size:         messageSize, // sizeof request message + report size (1024) + idListSize (we set it to 0 since it's not required)
 	}
-	protobufData := [16356]byte{}
-	copy(protobufData[:], serializedQuoteRequest)
+	qgsGetQuoteRequest.header = qgsGetQuestRequestHeader
 
-	var transferLength [4]byte
-	binary.BigEndian.PutUint32(transferLength[:], uint32(len(serializedQuoteRequest)))
+	var ioctlQuoteRequestData [16360]byte
+	messageSizePrefix := make([]byte, 4)
+	binary.LittleEndian.PutUint32(messageSizePrefix, messageSize)
 
-	quoteRequestWrapper := requestQuoteWrapper{
-		version:     1,
-		status:      0,
-		inputLength: 4 + uint32(len(serializedQuoteRequest)),
-		// outputLength:   uint32(unsafe.Sizeof(tdxRequestQuoteWrapper{})) - 24,
-		outputLength:   16360,
-		transferLength: transferLength,
-		protobufData:   protobufData,
+	copy(ioctlQuoteRequestData[0:3], messageSizePrefix)
+	copy(ioctlQuoteRequestData[4:], tdReport[:])
+
+	ioctlQuoteRequestHeader := quoteRequestHeader{
+		version:      1,
+		status:       0,
+		inputLength:  4 + messageSize, // TDREPORT is 1024 bytes long.
+		outputLength: 0,
+		data:         &ioctlQuoteRequestData,
 	}
 
-	outerWrapper := requestQuoteOuterWrapper{
-		blob:   uintptr(unsafe.Pointer(&quoteRequestWrapper)),
-		length: unsafe.Sizeof(quoteRequestWrapper),
+	ioctlQuoteRequest := quoteRequest{
+		blob:   uintptr(unsafe.Pointer(&ioctlQuoteRequestHeader)),
+		length: requestBufferSize,
 	}
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, tdx.Fd(), requestQuote, uintptr(unsafe.Pointer(&outerWrapper))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, tdx.Fd(), requestQuote, uintptr(unsafe.Pointer(&ioctlQuoteRequest))); errno != 0 {
 		return nil, fmt.Errorf("generating quote: %w", errno)
 	}
 
-	var quoteResponse tdxproto.Response
-	if err := proto.Unmarshal(quoteRequestWrapper.protobufData[:quoteRequestWrapper.outputLength-4], &quoteResponse); err != nil {
-		return nil, err
-	}
+	fmt.Println("Are we still alive?")
 
-	return quoteResponse.GetGetQuoteResponse().Quote, nil
+	fmt.Printf("qgsGetQuestRequest: %+v", qgsGetQuoteRequest)
+	fmt.Printf("qgsGetQuestRequestHeader: %+v", qgsGetQuestRequestHeader)
+	fmt.Printf("ioctlQuoteRequest: %+v", ioctlQuoteRequest)
+	fmt.Printf("ioctlQuoteRequestHeader: %+v", ioctlQuoteRequestHeader)
+
+	wtf := *ioctlQuoteRequestHeader.data
+
+	return wtf[:], nil
 }
 
 func createReport(tdx device, reportData [64]byte) ([1024]byte, error) {
@@ -191,18 +197,43 @@ type reportRequest struct {
 	tdReportLength   uint32
 }
 
-// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L70-L80
-type requestQuoteWrapper struct {
-	version        uint64
-	status         uint64
-	inputLength    uint32
-	outputLength   uint32
-	transferLength [4]byte     // BIG-ENDIAN
-	protobufData   [16356]byte // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/qgs/qgs.message.proto
+// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/71557c7d1d869b6bd6f95566c051cbd098549509/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L84-L95
+type quoteRequestHeader struct {
+	version      uint64
+	status       uint64
+	inputLength  uint32
+	outputLength uint32
+	data         *[16360]byte // Intel defines this as "__u64 data[0]" but uses malloc to reserve more memory underneath.
 }
 
 // https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/c057b236790834cf7e547ebf90da91c53c7ed7f9/QuoteGeneration/quote_wrapper/tdx_attest/tdx_attest.c#L82-L86
-type requestQuoteOuterWrapper struct {
+type quoteRequest struct {
 	blob   uintptr
 	length uintptr // size_t / uint64_t
+}
+
+// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/09666b3b14147145232ea4f28d85762ca5da3c5d/QuoteGeneration/quote_wrapper/qgs_msg_lib/inc/qgs_msg_lib.h#L71-L77
+type qgsMessageHeader struct {
+	majorVersion uint16
+	minorVersion uint16
+	messageType  uint32 // type but this is a reserved word in Go
+	size         uint32 // size of the whole message, include this header, in byte
+	errorCode    uint32
+}
+
+// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/09666b3b14147145232ea4f28d85762ca5da3c5d/QuoteGeneration/quote_wrapper/qgs_msg_lib/inc/qgs_msg_lib.h#L79-L84
+type qgsGetQuoteRequestMessage struct {
+	header          qgsMessageHeader
+	reportSize      uint32  // cannot be 0
+	selectedIDSize  uint32  // can be 0
+	idListSize      uint32  // can be 0
+	reportAndIDList uintptr // some byte array that holds the report
+}
+
+// https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/09666b3b14147145232ea4f28d85762ca5da3c5d/QuoteGeneration/quote_wrapper/qgs_msg_lib/inc/qgs_msg_lib.h#L86-L91
+type qgsGetQuoteResponseMessage struct {
+	header         qgsMessageHeader
+	selectedIDSize uint32
+	quoteSize      uint32
+	idAndQuote     uintptr // some byte array that holds the selected id followed by the quote
 }

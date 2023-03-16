@@ -8,7 +8,6 @@ require (
 	github.com/vtolstov/go-ioctl v0.0.0-20151206205506-6be9cced4810
 	go.uber.org/goleak v1.2.0
 	golang.org/x/sys v0.5.0
-	google.golang.org/protobuf v1.28.1
 	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
 )
 
