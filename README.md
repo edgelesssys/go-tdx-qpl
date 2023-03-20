@@ -105,3 +105,7 @@ Verification flow:
 10. Use the quote's public key to verify the quote's signature and signed data
 11. Check the TCB Level
 12. If enclave Identity is set, verify its TCB level
+
+## 3rdparty licenses
+
+This project is based on code from [Intel(R) Software Guard Extensions Data Center Attestation Primitives](https://github.com/intel/SGXDataCenterAttestationPrimitives), which is licensed under the [BSD license](3rdparty/SGXDataCenterAttestationPrimitives/License.txt).
