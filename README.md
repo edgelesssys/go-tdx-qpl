@@ -23,7 +23,7 @@ Given that the UAPI for TDX is yet to be finished and upstreamed, newer versions
 In case you encounter any issues despite the known restrictions, feel free to open [an issue](https://github.com/edgelesssys/go-tdx-qpl/issues/new/choose).
 
 ## Examples
-An example quote can be found [here](blobs/quote). Other example and test data can also be found in the [`blobs`](blobs) dictionary, or alternatively directly from [Intel's DCAP repo](https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteVerification/QVL/Src/AttestationApp/sampleData/tdx).
+An example quote can be found [here](blobs/quote). Other example and test data can also be found in the [`blobs`](blobs) directory, or alternatively directly from [Intel's DCAP repo](https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteVerification/QVL/Src/AttestationApp/sampleData/tdx).
 
 ### Quote generation
 Take a look at the [*generate*](testing/generate/main.go) example.
