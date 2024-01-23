@@ -338,8 +338,9 @@ func (v *TDXVerifier) getMatchingTCBLevel(tcbInfo types.TCBInfo, pckExtensions t
 				if isTCBHigherOrEqual(tcb.TCB.TDXTCBComponents, pckExtensions.TCB.TCBSVN) {
 					return tcb, nil
 				}
+			} else {
+				return tcb, nil
 			}
-			return tcb, nil
 		}
 	}
 
